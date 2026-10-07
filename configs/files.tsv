@@ -20,5 +20,6 @@ system	all	system/network/20-wlan.network	etc/systemd/network/20-wlan.network	06
 system	all	system/network/20-ethernet.network	etc/systemd/network/20-ethernet.network	0644
 system	all	system/iwd/main.conf	etc/iwd/main.conf	0644
 system	all	@/run/systemd/resolve/stub-resolv.conf	etc/resolv.conf	0644
+system	minibook	system/minibook-console-rotation.service	etc/systemd/system/minibook-console-rotation.service	0644
 system	all	system/zram-generator.conf	etc/systemd/zram-generator.conf	0644
 system	all	system/ly/arch-hyprland.desktop	etc/ly/custom-sessions/arch-hyprland.desktop	0644

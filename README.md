@@ -87,6 +87,53 @@ Backups are a safety measure for applying files, not an OS backup. Restoring the
 
 Ly's console orientation, the disk-unlock/console path, suspend, tablet mode, media keys, external displays, and new kernel updates need manual validation. `make boot-check` is read-only and examines the *currently running* setup; it cannot certify a new boot image.
 
+## MiniBook: manual Limine and Ly rotation
+
+If `make boot-rotation HOST=minibook` refuses your boot layout, use the manual steps below instead. Do not create a second Limine configuration or replace the whole file with an old machine's configuration. `/boot` is normally root-only; use `sudo` in your own terminal, and do not loosen its permissions.
+
+1. Locate the configuration Limine actually loads:
+
+   ```sh
+   sudo find /boot /efi -maxdepth 4 -iname 'limine.conf' -print
+   ```
+
+   A missing `/efi` directory is harmless. If access is still denied with sudo, stop and investigate that error rather than guessing a path.
+
+2. Back up the actual file, then edit it with `sudoedit`. For example, **only if the located file is `/boot/limine.conf`**:
+
+   ```sh
+   sudo cp -a /boot/limine.conf /boot/limine.conf.before-rotation
+   sudoedit /boot/limine.conf
+   ```
+
+   Add or change this **global setting above the boot entries**, leaving all existing entry paths and root references intact:
+
+   ```ini
+   interface_rotation: 90
+   ```
+
+   This rotates the Limine menu only—not Ly or the Linux console.
+
+3. For the inspected archinstall UKI layout (`default_uki="/boot/EFI/Linux/arch-linux.efi"` in `/etc/mkinitcpio.d/linux.preset`), back up and edit the kernel command-line source:
+
+   ```sh
+   sudo cp -a /etc/kernel/cmdline /etc/kernel/cmdline.before-rotation
+   sudo cp -a /boot/EFI/Linux/arch-linux.efi /boot/EFI/Linux/arch-linux.efi.before-rotation
+   sudoedit /etc/kernel/cmdline
+   ```
+
+   **Preserve the existing root and other boot arguments.** On the same single line, add these arguments, replacing any existing values for the same settings:
+
+   ```text
+   video=DSI-1:panel_orientation=right_side_up fbcon=rotate:1
+   ```
+
+   `fbcon=rotate:1` is the clockwise console/Ly correction selected for the reported orientation (top of text on the left, bottom on the right). Its direction still needs visual validation. These arguments belong in the UKI's command-line source, not merely in a Limine menu entry. If `/etc/kernel/cmdline` or the expected UKI does not exist, stop: the layout needs inspection.
+
+4. From this repo, run `make boot-rebuild` to rebuild that UKI. **If rebuilding fails, do not reboot.** Inspect the error and preserve/restore the backups as appropriate. After success, reboot manually with recovery media available and verify Limine, the console, and Ly. Hyprland/touch rotation remains separate.
+
+The repo's `minibook-console-rotation.service` is an additional post-boot console setting; it does not edit Limine or embed kernel arguments in a UKI.
+
 ## Shared-config provenance
 
 Initial Ghostty, tmux, Herdr, Starship and Zsh preferences came from `../dotfiles` at commit `c29b0f9fd93970b4e5a916d05b287f5a1ab297b0`, not live application files. The original macOS repo is untouched.

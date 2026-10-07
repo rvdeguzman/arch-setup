@@ -1,0 +1,13 @@
+[Unit]
+Description=MiniBook clockwise console rotation
+After=systemd-modules-load.service
+Before=ly@tty2.service
+ConditionPathExists=/sys/class/graphics/fbcon/rotate_all
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'printf "1\n" > /sys/class/graphics/fbcon/rotate_all'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

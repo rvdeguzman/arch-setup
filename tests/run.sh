@@ -67,7 +67,8 @@ manifest() {
   [[ "${FILE_ROWS[*]}" == *'hosts/minibook/host.lua'* ]] || return
   [[ "${FILE_ROWS[*]}" != *'hosts/t14/host.lua'* ]] || return
   load_files system "$scratch/manifests/system" || return
-  [[ ${#FILE_ROWS[@]} == 6 ]] || return
+  [[ ${#FILE_ROWS[@]} == 7 ]] || return
+  [[ "${FILE_ROWS[*]}" == *'system/minibook-console-rotation.service'* ]] || return
   for row in "${FILE_ROWS[@]}"; do [[ $row == *"$scratch/manifests/system/"* ]] || return; done
 }
 

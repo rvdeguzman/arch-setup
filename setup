@@ -89,6 +89,19 @@ case "$ACTION" in
     printf 'Read-only. Verify new kernel/UKI updates, console/Ly rotation, and recovery boot manually.\n'
     exit "$failed"
     ;;
+  boot-rotation|boot-rebuild)
+    require_fresh_arch
+    require_user
+    [[ $HOST == minibook ]] || { die 'Boot rotation is only implemented for MiniBook'; exit 1; }
+    if [[ $ACTION == boot-rebuild ]]; then
+      grep -Eq '^default_uki="/boot/EFI/Linux/arch-linux.efi"$' /etc/mkinitcpio.d/linux.preset || {
+        die 'Unexpected UKI preset; inspect the boot layout first'; exit 1;
+      }
+      sudo mkinitcpio -p linux
+    else
+      sudo bash "$ROOT/scripts/boot-rotation.sh"
+    fi
+    ;;
   packages|sources|apply-user|apply-system|services|paru|aur|pi|herdr-fetch|herdr-install|herdr-plugins|doom|shell|_system|_services)
     require_fresh_arch
     if [[ $ACTION == _system || $ACTION == _services ]]; then

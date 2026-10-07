@@ -6,7 +6,7 @@ PRODUCT_VERSION=''
 CPU_MATCH='N100'
 FILESYSTEM=ext4
 LY_TTY=tty2
-HOST_SERVICES=(thermald.service power-profiles-daemon.service)
+HOST_SERVICES=(thermald.service power-profiles-daemon.service minibook-console-rotation.service)
 AUR_SERVICES=(keyboardd.service tabletmoded.service)
-KERNEL_ARGUMENTS=('video=DSI-1:panel_orientation=right_side_up')
+KERNEL_ARGUMENTS=('video=DSI-1:panel_orientation=right_side_up' 'fbcon=rotate:1')
 LIMINE_ROTATION=90
