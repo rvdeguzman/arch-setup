@@ -32,7 +32,7 @@ Scripts require Bash 4.3+ (provided by Arch) and standard Arch tools, not Python
 
 ### Explicit installation stages
 
-Run as the normal user. Each mutating stage asks for a typed confirmation; there is no unattended `--yes`. System stages use sudo in your own terminal.
+Run as the normal user. Invoking a target runs that stage directly. Pacman, Paru, sudo, and external installers retain their own prompts. System stages use sudo in your own terminal.
 
 ```sh
 make packages HOST=minibook    # pacman -Syu --needed; official packages only
@@ -68,7 +68,7 @@ These lists do **not** pin rolling Arch versions or record every dependency. The
 
 `configs/files.tsv` declares exact files to copy. Files stay ordinary and editable. Manually copy desired live edits back here and review with Git; no syncing daemon or immutable symlink tree.
 
-- Diff and confirmation before apply.
+- Preview with `make diff` before applying files.
 - Private timestamped backups with a recovery manifest.
 - Existing file symlinks are backed up/replaced without modifying their referents.
 - Symlinked parent directories and conflicting directories are refused.
@@ -101,6 +101,6 @@ The external personal Doom/Neovim repos are not rewritten. If those repos still 
 
 ## Validation limits
 
-Tests write only temporary fixtures, covering package/path validation, backups/idempotence, symlinks, source-checkout conflicts, Paru dispatch and refusal paths, noninteractive refusal, service conflicts, and Lua evaluation with stubbed APIs. They do not start Hyprland or install/build applications. Lint reports tools it cannot run.
+Tests write only temporary fixtures, covering package/path validation, backups/idempotence, symlinks, source-checkout conflicts, Paru dispatch without wrapper prompts, refusal paths, service conflicts, and Lua evaluation with stubbed APIs. They do not start Hyprland or install/build applications. Lint reports tools it cannot run.
 
 Bootloader installation/update integration, Brave/1Password browser integration, Doom build/runtime behavior, Herdr graphics, and hardware acceptance are not certified by these tests. See the runbook for the explicit checkpoints.

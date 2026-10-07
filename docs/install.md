@@ -76,7 +76,7 @@ Install Paru once as your normal user. The official-package stage supplies Git a
 make paru HOST=minibook
 ```
 
-`make paru` preserves an existing helper. Otherwise it asks before fetching the AUR checkout into `~/.cache/arch-setup/paru`, prints PKGBUILD/install scripts for review, and asks before running `makepkg --syncdeps --install` as your user. Inspect other build files in that directory too. Existing matching checkouts are kept without pulling/resetting; conflicting or modified tracked files are refused. Building Paru may install Rust build dependencies.
+`make paru` preserves an existing helper. Otherwise it fetches the AUR checkout into `~/.cache/arch-setup/paru`, prints PKGBUILD/install scripts, and runs `makepkg --syncdeps --install` as your user. It has no custom confirmation pause. To inspect the checkout before building, clone it to that path and review its files before running the target. Existing matching checkouts are kept without pulling/resetting; conflicting or modified tracked files are refused. Building Paru may install Rust build dependencies.
 
 Then preview and install the selected AUR packages:
 
@@ -88,7 +88,7 @@ make aur HOST=minibook
 The default selection is `sioyek-appimage`, `brave-bin`, `1password`, `hunk`, and `minibook-support-git`. To select just one declared package, use `make aur PACKAGE=brave-bin HOST=minibook`.
 
 - `make aur-plan` is read-only and works without Paru installed.
-- `make aur` asks once, then runs `paru -S --needed --review --aur` with the selected package names. Paru handles fetching, dependency resolution, builds and installation, using its own cache.
+- `make aur` runs `paru -S --needed --review --aur` with the selected package names. Paru handles fetching, dependency resolution, builds and installation, using its own cache.
 - Review PKGBUILD/install scripts and relevant patches in Paru before accepting builds. `--review` keeps review enabled even if your Paru configuration normally skips it; prompts remain interactive.
 - Run as your normal user. Paru requests sudo for package installation as needed. A missing Paru command stops the AUR stage with instructions to run `make paru` first.
 - Old `~/.cache/arch-setup/aur` checkouts from the previous workflow are no longer used and remain untouched.
@@ -126,7 +126,7 @@ make doom
 make shell
 ```
 
-Each target asks separately. Existing pi is preserved; existing Doom core/legacy Emacs paths require manual inspection instead of overwrite. OMZ came from `make sources`, which does not run its shell-changing installer.
+Each target runs its selected stage directly; native installer prompts remain. Existing pi is preserved; existing Doom core/legacy Emacs paths require manual inspection instead of overwrite. OMZ came from `make sources`, which does not run its shell-changing installer.
 
 Doom core/config/package layers are distinct. After install, run Doom's sync/doctor commands through its CLI as appropriate. Because the personal Doom configuration is its own repo, adjust stale LaTeX modules or platform-specific commands there—not by editing its generated state. Typst/Tinymist are the intended writing tools.
 

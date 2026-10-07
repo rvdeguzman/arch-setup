@@ -102,7 +102,7 @@ case "$ACTION" in
     case "$ACTION" in
       packages)
         printf 'Command:'; printf ' %q' sudo pacman -Syu --needed "${OFFICIAL[@]}"; printf '\n'
-        confirm 'Full system upgrade + official packages. No automatic package removals.' INSTALL
+        printf '%s\n' 'Full system upgrade + official packages.'
         sudo pacman -Syu --needed "${OFFICIAL[@]}"
         ;;
       apply-user)
@@ -111,7 +111,7 @@ case "$ACTION" in
         [[ ${XDG_CONFIG_HOME:-$HOME_DIR/.config} == "$HOME_DIR/.config" ]] || {
           die 'Initial profile targets ~/.config; review custom XDG paths first'; exit 1;
         }
-        confirm 'Copy displayed user files after private backups. Inspect your existing .zshrc locally first.' COPY
+        printf '%s\n' 'Copying displayed user files after private backups.'
         copy_files "$HOME_DIR" "$HOME_DIR/.local/state/arch-setup/backups"
         if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
           hyprctl reload
@@ -122,14 +122,14 @@ case "$ACTION" in
       apply-system)
         load_files system /; preview_files 1
         require_no_conflicts
-        confirm 'Apply displayed system files after backups; no service restart or reboot.' SYSTEM
+        printf '%s\n' 'Applying displayed system files after backups.'
         sudo env HOST="$HOST" ARCH_SETUP_USER_HOME="$HOME_DIR" "$ROOT/setup" _system
         ;;
       services)
         printf 'Enable for next boot:\n'; printf '  %s\n' "${SERVICES[@]}" "${AUR_SERVICES[@]}"
         printf 'Mask getty@%s.service; do not start Ly now.\n' "$LY_TTY"
         require_no_conflicts
-        confirm 'Enable reviewed services only. No --now, network restart, or reboot.' SERVICES
+        printf '%s\n' 'Enabling services for the next boot.'
         sudo env HOST="$HOST" ARCH_SETUP_USER_HOME="$HOME_DIR" "$ROOT/setup" _services
         ;;
       _system)
@@ -166,7 +166,7 @@ case "$ACTION" in
             *) exit "$status" ;;
           esac
         done < "$ROOT/sources.tsv"
-        confirm 'Clone missing declared checkouts. Existing matching repositories remain untouched.' CLONE
+        printf '%s\n' 'Cloning missing declared checkouts.'
         for row in "${pending[@]}"; do
           IFS=$'\t' read -r url path <<< "$row"
           mkdir -p -- "${path%/*}"
@@ -186,7 +186,7 @@ case "$ACTION" in
           case $status in
             0) printf 'Existing Paru checkout kept without pulling/resetting.\n' ;;
             2)
-              confirm 'Fetch Paru build scripts from AUR for review.' FETCH
+              printf '%s\n' 'Fetching Paru build scripts from AUR.'
               mkdir -p -- "${path%/*}"
               git clone -- https://aur.archlinux.org/paru.git "$path"
               ;;
@@ -204,7 +204,7 @@ case "$ACTION" in
             while IFS= read -r line || [[ -n $line ]]; do printf '%s\n' "$line"; done < "$script"
           done
           printf '\nInspect other build files in %s before continuing.\n' "$path"
-          confirm 'Build/install reviewed Paru as your user; makepkg may request sudo and install Rust build dependencies.' 'BUILD PARU'
+          printf '%s\n' 'Building/installing Paru as your user; makepkg may request sudo and install Rust build dependencies.'
           (cd -- "$path" && makepkg --syncdeps --install)
         fi
         ;;
@@ -215,13 +215,13 @@ case "$ACTION" in
         if [[ " ${SELECTED_AUR[*]} " == *' limine-mkinitcpio-hook '* ]]; then
           printf 'Boot hook selected: review its configuration first; installation may regenerate boot files immediately.\n'
         fi
-        confirm 'Install selected AUR packages through Paru. Review PKGBUILD/install scripts in Paru before accepting builds.' AUR
+        printf '%s\n' 'Installing selected AUR packages through Paru. Review PKGBUILD/install scripts in Paru before accepting builds.'
         paru -S --needed --review --aur -- "${SELECTED_AUR[@]}"
         ;;
       pi)
         if command -v pi >/dev/null 2>&1; then printf 'Existing pi preserved; upgrades are separate.\n';
         else
-          confirm 'Install current npm pi release into ~/.local; no version pin is implied.' 'INSTALL PI'
+          printf '%s\n' 'Installing current npm pi release into ~/.local.'
           npm install --global --prefix "$HOME_DIR/.local" @earendil-works/pi-coding-agent
         fi
         ;;
@@ -229,7 +229,7 @@ case "$ACTION" in
         path="$HOME_DIR/.cache/arch-setup/herdr-install.sh"
         no_symlink_parents "$path" "$HOME_DIR"
         [[ ! -e $path && ! -L $path ]] || { die 'Installer exists: inspect it, do not overwrite blindly'; exit 1; }
-        confirm 'Download official Herdr installer for review. Do not execute it.' FETCH
+        printf '%s\n' 'Downloading official Herdr installer for review.'
         mkdir -p -- "${path%/*}"
         curl --fail --location --proto '=https' --output "$path" https://herdr.dev/install.sh
         sha256sum -- "$path"
@@ -240,11 +240,11 @@ case "$ACTION" in
         [[ -f $path && ! -L $path ]] || { die 'Fetch installer first'; exit 1; }
         while IFS= read -r line || [[ -n $line ]]; do printf '%s\n' "$line"; done < "$path"
         sha256sum -- "$path"
-        confirm 'Execute this installer; it controls its own installation location/behavior. Read it first.' 'INSTALL HERDR'
+        printf '%s\n' 'Executing the downloaded Herdr installer.'
         sh "$path"
         ;;
       herdr-plugins)
-        confirm 'Install the Herdr Vim-navigation plugin declared by your config.' 'INSTALL PLUGIN'
+        printf '%s\n' 'Installing the Herdr Vim-navigation plugin declared by your config.'
         herdr plugin install paulbkim-dev/vim-herdr-navigation --yes
         ;;
       doom)
@@ -254,12 +254,12 @@ case "$ACTION" in
           die 'Existing Emacs core/config: inspect manually, no overwrite/update automated'; exit 1;
         }
         [[ -f $HOME_DIR/.config/doom/init.el ]] || { die 'Clone Doom config with make sources first'; exit 1; }
-        confirm 'Clone Doom core and run its interactive installer.' 'INSTALL DOOM'
+        printf '%s\n' 'Cloning Doom core and running its interactive installer.'
         git clone --depth 1 -- https://github.com/doomemacs/core "$core"
         "$core/bin/doom" install
         ;;
       shell)
-        confirm 'Change login shell to /usr/bin/zsh; no shell config files changed by this stage.' 'CHANGE SHELL'
+        printf '%s\n' 'Changing login shell to /usr/bin/zsh.'
         chsh -s /usr/bin/zsh
         ;;
     esac

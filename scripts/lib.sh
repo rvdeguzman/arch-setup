@@ -139,7 +139,7 @@ preview_files() {
     printf 'CHANGE %s <- %s\n' "$target" "$source"
     [[ $show_diff == 1 && $source != @* && ! -L $target ]] || continue
     if [[ ${target##*/} == .zshrc ]]; then
-      printf '  Existing shell contents suppressed: inspect locally before approval.\n'
+      printf '  Existing shell contents suppressed: inspect locally before replacement.\n'
       continue
     fi
     status=0
@@ -189,14 +189,6 @@ copy_files() {
   done
   if [[ -n $backup ]]; then printf 'Private backups/recovery manifest: %s\n' "$backup";
   else printf 'All managed files already match.\n'; fi
-}
-
-confirm() {
-  local message=$1 token=$2 answer
-  [[ -t 0 ]] || { die 'An interactive terminal is required; there is no unattended --yes'; return 1; }
-  printf '%s\nType %q to continue: ' "$message" "$token"
-  IFS= read -r answer || return
-  [[ $answer == "$token" ]] || { die 'Cancelled'; return 1; }
 }
 
 require_fresh_arch() {

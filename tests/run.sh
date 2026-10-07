@@ -164,7 +164,6 @@ paru_stage() {
   cat >> "$dir/project/scripts/lib.sh" <<'FIXTURE'
 require_fresh_arch() { [[ $AUDITED == 1 && ${PARU_TEST_ARCH:-1} == 1 ]]; }
 require_user() { [[ ${PARU_TEST_USER:-1} == 1 ]]; }
-confirm() { [[ ${PARU_TEST_APPROVAL:-1} == 1 ]]; }
 command() {
   if [[ $1 == -v && $2 == paru && ${PARU_TEST_MISSING:-0} == 1 ]]; then return 1; fi
   builtin command "$@"
@@ -176,12 +175,11 @@ paru() {
 FIXTURE
   export HOME="$dir/home" HOST=minibook DEV=1 EXTRA='' BOOT_HOOK=0 PACKAGE=''
   export PARU_TEST_LOG="$dir/arguments"
-  "$dir/project/setup" aur > "$dir/output" || return
+  "$dir/project/setup" aur </dev/null > "$dir/output" || return
   printf '%s\n' -S --needed --review --aur -- sioyek-appimage brave-bin 1password hunk minibook-support-git > "$dir/expected"
   cmp -s "$dir/expected" "$PARU_TEST_LOG" || return
 
   rm "$PARU_TEST_LOG" || return
-  expect_failure env PARU_TEST_APPROVAL=0 "$dir/project/setup" aur || return
   expect_failure env PARU_TEST_ARCH=0 "$dir/project/setup" aur || return
   expect_failure env PARU_TEST_USER=0 "$dir/project/setup" aur || return
   expect_failure env HOST=t14 "$dir/project/setup" aur || return
@@ -215,10 +213,6 @@ service_conflicts() {
   # shellcheck disable=SC2317,SC2329
   systemctl() { printf 'inactive\n'; return 1; }
   require_no_conflicts || return
-}
-
-noninteractive_refusal() {
-  expect_failure confirm 'must not run' INSTALL </dev/null || return
 }
 
 plan_is_readonly() {
@@ -303,7 +297,6 @@ test_case 'existing shell contents never printed' shell_privacy
 test_case 'matching Git origin and checkout-root checks' checkout_rules
 test_case 'Paru dispatch, missing helper, guards, failure status and opt-in boot hook' paru_stage
 test_case 'reject competing network managers' service_conflicts
-test_case 'refuse unattended mutation' noninteractive_refusal
 test_case 'plan makes no HOME changes' plan_is_readonly
 test_case 'Lua config evaluates with stubbed APIs, no app launches' lua_configuration
 test_case 'refuse mutating an Omarchy installation' omarchy_guard
