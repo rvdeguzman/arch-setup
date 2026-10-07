@@ -70,18 +70,15 @@ Default development stack is enabled. Use `DEV=0` consistently if you want to om
 
 ## 6. Reviewed AUR packages
 
-Install Paru once as your normal user if it is not already available. The official-package stage supplies Git and base-devel. Follow [Paru's installation instructions](https://github.com/Morganamilo/paru#installation):
+Install Paru once as your normal user. The official-package stage supplies Git and base-devel. The target follows [Paru's source installation](https://github.com/Morganamilo/paru#installation):
 
 ```sh
-cd ~
-git clone https://aur.archlinux.org/paru.git
-cd paru
-less PKGBUILD
-# Review PKGBUILD and any .install scripts before building:
-makepkg -si
+make paru HOST=minibook
 ```
 
-Return to your arch-setup checkout, then preview and install the selected AUR packages:
+`make paru` preserves an existing helper. Otherwise it asks before fetching the AUR checkout into `~/.cache/arch-setup/paru`, prints PKGBUILD/install scripts for review, and asks before running `makepkg --syncdeps --install` as your user. Inspect other build files in that directory too. Existing matching checkouts are kept without pulling/resetting; conflicting or modified tracked files are refused. Building Paru may install Rust build dependencies.
+
+Then preview and install the selected AUR packages:
 
 ```sh
 make aur-plan HOST=minibook
@@ -93,7 +90,7 @@ The default selection is `sioyek-appimage`, `brave-bin`, `1password`, `hunk`, an
 - `make aur-plan` is read-only and works without Paru installed.
 - `make aur` asks once, then runs `paru -S --needed --review --aur` with the selected package names. Paru handles fetching, dependency resolution, builds and installation, using its own cache.
 - Review PKGBUILD/install scripts and relevant patches in Paru before accepting builds. `--review` keeps review enabled even if your Paru configuration normally skips it; prompts remain interactive.
-- Run as your normal user. Paru requests sudo for package installation as needed. A missing Paru command stops the stage with instructions; the repo does not install the helper automatically.
+- Run as your normal user. Paru requests sudo for package installation as needed. A missing Paru command stops the AUR stage with instructions to run `make paru` first.
 - Old `~/.cache/arch-setup/aur` checkouts from the previous workflow are no longer used and remain untouched.
 - The older cached MiniBook installer referenced obsolete `moused.service`; inspect the actual downloaded revision rather than assuming it is corrected.
 - AUR scripts may start services during installation. In particular, tablet daemons can grab keyboard/trackpad input: install/review deliberately with a recovery console and alternative input available.

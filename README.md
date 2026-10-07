@@ -14,7 +14,7 @@ This is an initial, reviewed bootstrap repository for **fresh Arch installations
 - Zsh + Oh My Zsh + Starship and the familiar CLI utilities.
 - Python via uv, C/raylib, TypeScript/Node included by default. Go optional.
 - Brave and 1Password. No credential import or authentication is automated.
-- No Docker/Colima, TeX Live, default Go/Rust toolchain, or automatic package removal.
+- No Docker/Colima, TeX Live, default Go toolchain, or automatic package removal. Building Paru may install Rust build dependencies.
 
 ## Start here
 
@@ -36,6 +36,7 @@ Run as the normal user. Each mutating stage asks for a typed confirmation; there
 
 ```sh
 make packages HOST=minibook    # pacman -Syu --needed; official packages only
+make paru HOST=minibook        # fetch/review/build helper once; preserve existing Paru
 make aur HOST=minibook         # installed Paru handles AUR review/build/install
 make sources HOST=minibook     # clone missing config/OMZ repos, never pull/reset
 make diff HOST=minibook
@@ -43,7 +44,7 @@ make apply-user HOST=minibook  # back up then copy selected user files
 make apply-system HOST=minibook
 ```
 
-Install Paru once using the runbook before `make aur`. That target passes the selected AUR lists to `paru -S --needed --review --aur`, with interactive build-script review. `make aur-plan` previews the selection; `PACKAGE=name` optionally selects one declared package. Official packages still use pacman. External installers, boot checks and service activation are separate steps documented in the runbook. `make services` enables services for the next boot, not `--now`; it refuses competing network/display managers.
+Install Paru once with `make paru` before `make aur`. The AUR target passes the selected lists to `paru -S --needed --review --aur`, with interactive build-script review. `make aur-plan` previews the selection; `PACKAGE=name` optionally selects one declared package. Official packages still use pacman. External installers, boot checks and service activation are separate steps documented in the runbook. `make services` enables services for the next boot, not `--now`; it refuses competing network/display managers.
 
 ### Package lists are the source of intent
 

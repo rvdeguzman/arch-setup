@@ -22,7 +22,7 @@ case "$ACTION" in
       [[ -n $name && $name != \#* ]] || continue
       printf '  %s -> ~/%s\n' "$name" "$target"
     done < "$ROOT/sources.tsv"
-    printf '\nSeparate installers: pi, Herdr, Herdr plugin, Doom core\n'
+    printf '\nSeparate installers: Paru (make paru), pi, Herdr, Herdr plugin, Doom core\n'
     printf 'Enable-only services:\n'; printf '  %s\n' "${SERVICES[@]}" "${AUR_SERVICES[@]}"
     printf 'Ly will mask getty@%s; other consoles stay available.\n' "$LY_TTY"
     printf 'Boot setup is a separate pre-reboot checkpoint. No snapshots configured.\n'
@@ -89,7 +89,7 @@ case "$ACTION" in
     printf 'Read-only. Verify new kernel/UKI updates, console/Ly rotation, and recovery boot manually.\n'
     exit "$failed"
     ;;
-  packages|sources|apply-user|apply-system|services|aur|pi|herdr-fetch|herdr-install|herdr-plugins|doom|shell|_system|_services)
+  packages|sources|apply-user|apply-system|services|paru|aur|pi|herdr-fetch|herdr-install|herdr-plugins|doom|shell|_system|_services)
     require_fresh_arch
     if [[ $ACTION == _system || $ACTION == _services ]]; then
       if ! { (( EUID == 0 )) && [[ -n ${SUDO_USER:-} && -n ${ARCH_SETUP_USER_HOME:-} ]]; }; then
@@ -173,9 +173,44 @@ case "$ACTION" in
           git clone --depth 1 -- "$url" "$path"
         done
         ;;
+      paru)
+        if command -v paru >/dev/null 2>&1; then
+          printf 'Existing Paru preserved; upgrades are separate.\n'
+        else
+          if ! command -v git >/dev/null 2>&1 || ! command -v makepkg >/dev/null 2>&1; then
+            die 'Run make packages first to install Git and base-devel'; exit 1;
+          fi
+          path="$HOME_DIR/.cache/arch-setup/paru"
+          no_symlink_parents "$path" "$HOME_DIR"
+          status=0; checkout_valid "$path" https://aur.archlinux.org/paru.git || status=$?
+          case $status in
+            0) printf 'Existing Paru checkout kept without pulling/resetting.\n' ;;
+            2)
+              confirm 'Fetch Paru build scripts from AUR for review.' FETCH
+              mkdir -p -- "${path%/*}"
+              git clone -- https://aur.archlinux.org/paru.git "$path"
+              ;;
+            *) exit "$status" ;;
+          esac
+          [[ -z $(git -C "$path" status --porcelain --untracked-files=no) ]] || {
+            die 'Tracked Paru build files are modified; inspect separately'; exit 1;
+          }
+          [[ -f $path/PKGBUILD && ! -L $path/PKGBUILD ]] || { die 'Missing/unsafe Paru PKGBUILD'; exit 1; }
+          printf 'Paru AUR revision: '; git -C "$path" rev-parse HEAD
+          for script in "$path/PKGBUILD" "$path"/*.install; do
+            [[ -e $script || -L $script ]] || continue
+            [[ -f $script && ! -L $script ]] || { die 'Unsafe Paru install script'; exit 1; }
+            printf '\n%s\n' "${script##*/}"
+            while IFS= read -r line || [[ -n $line ]]; do printf '%s\n' "$line"; done < "$script"
+          done
+          printf '\nInspect other build files in %s before continuing.\n' "$path"
+          confirm 'Build/install reviewed Paru as your user; makepkg may request sudo and install Rust build dependencies.' 'BUILD PARU'
+          (cd -- "$path" && makepkg --syncdeps --install)
+        fi
+        ;;
       aur)
         select_aur_packages
-        command -v paru >/dev/null 2>&1 || { die 'Paru is required: install it using docs/install.md, then rerun make aur'; exit 1; }
+        command -v paru >/dev/null 2>&1 || { die 'Paru is required: run make paru, then rerun make aur'; exit 1; }
         printf 'Command:'; printf ' %q' paru -S --needed --review --aur -- "${SELECTED_AUR[@]}"; printf '\n'
         if [[ " ${SELECTED_AUR[*]} " == *' limine-mkinitcpio-hook '* ]]; then
           printf 'Boot hook selected: review its configuration first; installation may regenerate boot files immediately.\n'
