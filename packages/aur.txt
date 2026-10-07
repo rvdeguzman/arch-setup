@@ -1,4 +1,4 @@
-# Reviewed separately; nothing here is installed by make packages.
+# Installed via Paru by make aur; nothing here is installed by make packages.
 # Stable upstream Sioyek currently maps to this AUR package, not sioyek-git.
 sioyek-appimage
 brave-bin

@@ -18,7 +18,10 @@ for HOST in minibook t14; do
 done
 
 if command -v shellcheck >/dev/null 2>&1; then
-  shellcheck setup scripts/*.sh tests/*.sh hosts/*/host.sh
+  # Follow shared helpers from runnable scripts so cross-file variables resolve.
+  shellcheck -x -P SCRIPTDIR -s bash setup scripts/lint.sh tests/run.sh
+  # Data profiles and the library expose variables for their callers.
+  shellcheck -s bash -e SC2034 scripts/lib.sh hosts/*/host.sh
 else printf 'SKIP ShellCheck: not installed\n'; fi
 if command -v zsh >/dev/null 2>&1; then
   zsh -n configs/zsh/zshrc

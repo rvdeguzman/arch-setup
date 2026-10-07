@@ -241,28 +241,11 @@ require_no_conflicts() {
   done
 }
 
-validate_aur_package() {
+select_aur_packages() {
+  SELECTED_AUR=("${AUR[@]}")
+  [[ -n $PACKAGE ]] || return 0
   local entry found=0
   for entry in "${AUR[@]}"; do [[ $entry != "$PACKAGE" ]] || found=1; done
   (( found )) || { die 'PACKAGE must be an entry in the selected AUR lists'; return 1; }
-  AUR_DIR="$HOME_DIR/.cache/arch-setup/aur/$PACKAGE"
-  no_symlink_parents "$AUR_DIR" "$HOME_DIR" || return
-}
-
-review_aur() {
-  checkout_valid "$AUR_DIR" "https://aur.archlinux.org/$PACKAGE.git" || return
-  [[ -z $(git -C "$AUR_DIR" status --porcelain --untracked-files=no) ]] || {
-    die 'Tracked AUR files are modified; inspect separately'; return 1;
-  }
-  printf 'AUR revision: '; git -C "$AUR_DIR" rev-parse HEAD || return
-  local script
-  [[ -f $AUR_DIR/PKGBUILD && ! -L $AUR_DIR/PKGBUILD ]] || { die 'Missing/unsafe PKGBUILD'; return 1; }
-  for script in "$AUR_DIR/PKGBUILD" "$AUR_DIR"/*.install; do
-    [[ -e $script || -L $script ]] || continue
-    [[ -f $script && ! -L $script ]] || { die 'Unsafe install script'; return 1; }
-    printf '\n=== %s ===\n' "${script##*/}"
-    # Display only public build scripts; never source them during review.
-    while IFS= read -r line || [[ -n $line ]]; do printf '%s\n' "$line"; done < "$script"
-  done
-  printf 'Inspect patches/other files too. AUR scripts execute arbitrary code; this is not security verification.\n'
+  SELECTED_AUR=("$PACKAGE")
 }

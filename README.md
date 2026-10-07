@@ -36,13 +36,14 @@ Run as the normal user. Each mutating stage asks for a typed confirmation; there
 
 ```sh
 make packages HOST=minibook    # pacman -Syu --needed; official packages only
+make aur HOST=minibook         # installed Paru handles AUR review/build/install
 make sources HOST=minibook     # clone missing config/OMZ repos, never pull/reset
 make diff HOST=minibook
 make apply-user HOST=minibook  # back up then copy selected user files
 make apply-system HOST=minibook
 ```
 
-AUR packages, external installers, boot checks and service activation are separate steps documented in the runbook. `make services` enables services for the next boot, not `--now`; it refuses competing network/display managers.
+Install Paru once using the runbook before `make aur`. That target passes the selected AUR lists to `paru -S --needed --review --aur`, with interactive build-script review. `make aur-plan` previews the selection; `PACKAGE=name` optionally selects one declared package. Official packages still use pacman. External installers, boot checks and service activation are separate steps documented in the runbook. `make services` enables services for the next boot, not `--now`; it refuses competing network/display managers.
 
 ### Package lists are the source of intent
 
@@ -99,6 +100,6 @@ The external personal Doom/Neovim repos are not rewritten. If those repos still 
 
 ## Validation limits
 
-Tests write only temporary fixtures, covering package/path validation, backups/idempotence, symlinks, source-checkout conflicts, AUR review, noninteractive refusal, service conflicts, and Lua evaluation with stubbed APIs. They do not start Hyprland or install/build applications. Lint reports tools it cannot run.
+Tests write only temporary fixtures, covering package/path validation, backups/idempotence, symlinks, source-checkout conflicts, Paru dispatch and refusal paths, noninteractive refusal, service conflicts, and Lua evaluation with stubbed APIs. They do not start Hyprland or install/build applications. Lint reports tools it cannot run.
 
 Bootloader installation/update integration, Brave/1Password browser integration, Doom build/runtime behavior, Herdr graphics, and hardware acceptance are not certified by these tests. See the runbook for the explicit checkpoints.

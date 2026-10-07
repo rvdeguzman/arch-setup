@@ -156,26 +156,63 @@ checkout_rules() {
   [[ $status == 2 ]] || return
 }
 
-aur_review_does_not_execute() {
-  local dir="$scratch/aur"
-  mkdir "$dir" || return
-  git -C "$dir" init -q || return
-  git -C "$dir" remote add origin https://aur.archlinux.org/hunk.git || return
-  printf 'touch SHOULD_NOT_EXIST\n' > "$dir/PKGBUILD"
-  printf 'touch ALSO_SHOULD_NOT_EXIST\n' > "$dir/hunk.install"
-  git -C "$dir" add . || return
-  git -C "$dir" -c user.name=Test -c user.email=test@example.invalid commit -qm fixture || return
-  AUR_DIR=$dir PACKAGE=hunk
-  review_aur > "$scratch/aur-review-output" || return
-  [[ ! -e $dir/SHOULD_NOT_EXIST && ! -e $dir/ALSO_SHOULD_NOT_EXIST ]] || return
+paru_stage() {
+  local dir="$scratch/paru-stage" status
+  mkdir -p "$dir/project" "$dir/home" || return
+  cp -R "$PROJECT/setup" "$PROJECT/scripts" "$PROJECT/packages" "$PROJECT/hosts" "$dir/project/" || return
+  # Override external effects only in a temporary copy, then exercise real dispatch.
+  cat >> "$dir/project/scripts/lib.sh" <<'FIXTURE'
+require_fresh_arch() { [[ $AUDITED == 1 && ${PARU_TEST_ARCH:-1} == 1 ]]; }
+require_user() { [[ ${PARU_TEST_USER:-1} == 1 ]]; }
+confirm() { [[ ${PARU_TEST_APPROVAL:-1} == 1 ]]; }
+command() {
+  if [[ $1 == -v && $2 == paru && ${PARU_TEST_MISSING:-0} == 1 ]]; then return 1; fi
+  builtin command "$@"
+}
+paru() {
+  printf '%s\n' "$@" > "$PARU_TEST_LOG"
+  return "${PARU_TEST_STATUS:-0}"
+}
+FIXTURE
+  export HOME="$dir/home" HOST=minibook DEV=1 EXTRA='' BOOT_HOOK=0 PACKAGE=''
+  export PARU_TEST_LOG="$dir/arguments"
+  "$dir/project/setup" aur > "$dir/output" || return
+  printf '%s\n' -S --needed --review --aur -- sioyek-appimage brave-bin 1password hunk minibook-support-git > "$dir/expected"
+  cmp -s "$dir/expected" "$PARU_TEST_LOG" || return
+
+  rm "$PARU_TEST_LOG" || return
+  expect_failure env PARU_TEST_APPROVAL=0 "$dir/project/setup" aur || return
+  expect_failure env PARU_TEST_ARCH=0 "$dir/project/setup" aur || return
+  expect_failure env PARU_TEST_USER=0 "$dir/project/setup" aur || return
+  expect_failure env HOST=t14 "$dir/project/setup" aur || return
+  expect_failure env PACKAGE=undeclared-package "$dir/project/setup" aur || return
+  if PARU_TEST_MISSING=1 "$dir/project/setup" aur > "$dir/missing-output" 2>&1; then return 1; fi
+  grep -q 'Paru is required' "$dir/missing-output" || return
+  [[ ! -e $PARU_TEST_LOG ]] || return
+
+  PACKAGE=hunk PARU_TEST_STATUS=23 "$dir/project/setup" aur > "$dir/output" || status=$?
+  [[ ${status:-0} == 23 ]] || return
+  printf '%s\n' -S --needed --review --aur -- hunk > "$dir/expected"
+  cmp -s "$dir/expected" "$PARU_TEST_LOG" || return
+
+  rm "$PARU_TEST_LOG" || return
+  expect_failure env PACKAGE=limine-mkinitcpio-hook "$dir/project/setup" aur || return
+  [[ ! -e $PARU_TEST_LOG ]] || return
+  PACKAGE=limine-mkinitcpio-hook BOOT_HOOK=1 "$dir/project/setup" aur > "$dir/output" || return
+  printf '%s\n' -S --needed --review --aur -- limine-mkinitcpio-hook > "$dir/expected"
+  cmp -s "$dir/expected" "$PARU_TEST_LOG" || return
+  grep -q 'may regenerate boot files' "$dir/output" || return
 }
 
 service_conflicts() {
+  # Invoked indirectly by require_no_conflicts in the sourced library.
+  # shellcheck disable=SC2317,SC2329
   systemctl() {
     if [[ $1 == is-enabled && $2 == NetworkManager.service ]]; then printf 'enabled\n'; return 0; fi
     printf 'inactive\n'; return 1
   }
   expect_failure require_no_conflicts || return
+  # shellcheck disable=SC2317,SC2329
   systemctl() { printf 'inactive\n'; return 1; }
   require_no_conflicts || return
 }
@@ -190,6 +227,10 @@ plan_is_readonly() {
   [[ -z $(find "$scratch/plan-home" -mindepth 1 -print) ]] || return
   grep -q brave-bin "$scratch/plan-output" || return
   grep -q 'filesystem=ext4' "$scratch/plan-output" || return
+  HOME="$scratch/plan-home" HOST=minibook DEV=1 EXTRA='' BOOT_HOOK=0 PACKAGE=hunk "$PROJECT/setup" aur-plan > "$scratch/aur-plan-output" || return
+  grep -qx hunk "$scratch/aur-plan-output" || return
+  grep -q 'paru -S --needed --review --aur -- hunk' "$scratch/aur-plan-output" || return
+  [[ -z $(find "$scratch/plan-home" -mindepth 1 -print) ]] || return
   expect_failure env HOST=../evil "$PROJECT/setup" plan || return
   expect_failure env HOST=minibook DEV=maybe "$PROJECT/setup" plan || return
 }
@@ -213,16 +254,16 @@ omarchy_guard() {
 aur_selection() {
   HOST=minibook DEV=1 EXTRA='' BOOT_HOOK=0
   build_package_lists || return
-  HOME_DIR="$scratch/aur-selection-home"
-  mkdir "$HOME_DIR" || return
+  PACKAGE=''
+  select_aur_packages || return
+  [[ ${SELECTED_AUR[*]} == "${AUR[*]}" ]] || return
   PACKAGE=hunk
-  validate_aur_package || return
-  [[ $AUR_DIR == "$HOME_DIR/.cache/arch-setup/aur/hunk" ]] || return
+  select_aur_packages || return
+  [[ ${SELECTED_AUR[*]} == hunk ]] || return
   PACKAGE=../../escape
-  expect_failure validate_aur_package || return
+  expect_failure select_aur_packages || return
   PACKAGE=undeclared-package
-  expect_failure validate_aur_package || return
-  [[ ! -e $HOME_DIR/.cache ]] || return
+  expect_failure select_aur_packages || return
 }
 
 mode_only_change() {
@@ -260,7 +301,7 @@ test_case 'resolver symlink and old-file backup' system_link
 test_case 'directory conflict rejected before writes' preflight_directory_conflict
 test_case 'existing shell contents never printed' shell_privacy
 test_case 'matching Git origin and checkout-root checks' checkout_rules
-test_case 'AUR review never executes scripts' aur_review_does_not_execute
+test_case 'Paru dispatch, missing helper, guards, failure status and opt-in boot hook' paru_stage
 test_case 'reject competing network managers' service_conflicts
 test_case 'refuse unattended mutation' noninteractive_refusal
 test_case 'plan makes no HOME changes' plan_is_readonly

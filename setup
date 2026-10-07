@@ -16,7 +16,7 @@ case "$ACTION" in
   plan)
     printf '%s | filesystem=%s | encryption=no\n' "$HOST_NAME" "$FILESYSTEM"
     printf '\nOfficial packages:\n'; printf '  %s\n' "${OFFICIAL[@]}"
-    printf '\nSeparate reviewed AUR packages:\n'; printf '  %s\n' "${AUR[@]}"
+    printf '\nAUR packages via Paru (make aur):\n'; printf '  %s\n' "${AUR[@]}"
     printf '\nExternal checkouts:\n'
     while IFS=$'\t' read -r name url target; do
       [[ -n $name && $name != \#* ]] || continue
@@ -33,11 +33,9 @@ case "$ACTION" in
     load_files system /; preview_files 1
     ;;
   aur-plan)
-    printf '%s\n' "${AUR[@]}"
-    printf 'For each: make aur-fetch PACKAGE=name; make aur-review PACKAGE=name; make aur-install PACKAGE=name\n'
-    ;;
-  aur-review)
-    validate_aur_package; review_aur
+    select_aur_packages
+    printf '%s\n' "${SELECTED_AUR[@]}"
+    printf 'Command:'; printf ' %q' paru -S --needed --review --aur -- "${SELECTED_AUR[@]}"; printf '\n'
     ;;
   check)
     failed=0
@@ -79,7 +77,7 @@ case "$ACTION" in
     failed=0
     if [[ ! -r /boot/limine.conf ]]; then die 'Cannot read /boot/limine.conf; inspect the actual ESP configuration'; exit 1; fi
     if [[ -n $LIMINE_ROTATION ]]; then
-      if grep -Eq "^[[:space:]]*interface_rotation:[[:space:]]*$LIMINE_ROTATION[[:space:]]*$" /boot/limine.conf; then
+      if grep -Eq "^[[:space:]]*interface_rotation:[[:space:]]*${LIMINE_ROTATION}[[:space:]]*$" /boot/limine.conf; then
         printf 'OK Limine menu rotation: %s\n' "$LIMINE_ROTATION"
       else printf 'WARN missing Limine rotation: %s\n' "$LIMINE_ROTATION"; failed=1; fi
     fi
@@ -91,12 +89,12 @@ case "$ACTION" in
     printf 'Read-only. Verify new kernel/UKI updates, console/Ly rotation, and recovery boot manually.\n'
     exit "$failed"
     ;;
-  packages|sources|apply-user|apply-system|services|aur-fetch|aur-install|pi|herdr-fetch|herdr-install|herdr-plugins|doom|shell|_system|_services)
+  packages|sources|apply-user|apply-system|services|aur|pi|herdr-fetch|herdr-install|herdr-plugins|doom|shell|_system|_services)
     require_fresh_arch
     if [[ $ACTION == _system || $ACTION == _services ]]; then
-      (( EUID == 0 )) && [[ -n ${SUDO_USER:-} && -n ${ARCH_SETUP_USER_HOME:-} ]] || {
+      if ! { (( EUID == 0 )) && [[ -n ${SUDO_USER:-} && -n ${ARCH_SETUP_USER_HOME:-} ]]; }; then
         die 'Internal stage requires the sudo helper'; exit 1;
-      }
+      fi
       account_home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
       [[ $(realpath -- "$account_home") == "$HOME_DIR" ]] || { die 'Helper home does not match invoking user'; exit 1; }
     else require_user; fi
@@ -175,23 +173,15 @@ case "$ACTION" in
           git clone --depth 1 -- "$url" "$path"
         done
         ;;
-      aur-fetch)
-        validate_aur_package
-        status=0; checkout_valid "$AUR_DIR" "https://aur.archlinux.org/$PACKAGE.git" || status=$?
-        case $status in
-          0) printf 'Existing checkout kept without pulling/resetting. Review locally.\n' ;;
-          2)
-            confirm "Fetch $PACKAGE build scripts only; no build/install." FETCH
-            mkdir -p -- "${AUR_DIR%/*}"
-            git clone -- "https://aur.archlinux.org/$PACKAGE.git" "$AUR_DIR"
-            ;;
-          *) exit "$status" ;;
-        esac
-        ;;
-      aur-install)
-        validate_aur_package; review_aur
-        confirm 'Execute the displayed AUR build/install scripts; dependencies may require sudo.' "BUILD $PACKAGE"
-        (cd -- "$AUR_DIR" && makepkg --syncdeps --install)
+      aur)
+        select_aur_packages
+        command -v paru >/dev/null 2>&1 || { die 'Paru is required: install it using docs/install.md, then rerun make aur'; exit 1; }
+        printf 'Command:'; printf ' %q' paru -S --needed --review --aur -- "${SELECTED_AUR[@]}"; printf '\n'
+        if [[ " ${SELECTED_AUR[*]} " == *' limine-mkinitcpio-hook '* ]]; then
+          printf 'Boot hook selected: review its configuration first; installation may regenerate boot files immediately.\n'
+        fi
+        confirm 'Install selected AUR packages through Paru. Review PKGBUILD/install scripts in Paru before accepting builds.' AUR
+        paru -S --needed --review --aur -- "${SELECTED_AUR[@]}"
         ;;
       pi)
         if command -v pi >/dev/null 2>&1; then printf 'Existing pi preserved; upgrades are separate.\n';
