@@ -1,0 +1,5 @@
+# name	origin	home-relative target
+nvim	https://github.com/rvdeguzman/nvim.git	.config/nvim
+doom-config	https://github.com/rvdeguzman/doom.git	.config/doom
+pi-config	https://github.com/rvdeguzman/pi-config.git	.pi/agent
+oh-my-zsh	https://github.com/ohmyzsh/ohmyzsh.git	.oh-my-zsh

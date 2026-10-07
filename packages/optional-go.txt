@@ -1,0 +1,2 @@
+# Not included in the normal bootstrap. Use EXTRA=go.
+go

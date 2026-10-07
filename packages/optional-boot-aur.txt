@@ -1,0 +1,3 @@
+# Not installed by the normal AUR stages. Use only if archinstall did not
+# provide working kernel-update integration, after reviewing its setup docs.
+limine-mkinitcpio-hook

@@ -1,0 +1,2 @@
+-- Hardware audit pending. No Intel/AMD, display, or driver assumptions.
+-- Shared fallback monitor rule only; mutating setup targets refuse this host.

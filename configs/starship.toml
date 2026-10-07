@@ -1,0 +1,30 @@
+# geoffgarside-style prompt: user@hostname:dir (branch) status $
+# (previous config saved as starship.toml.bak)
+add_newline = false
+command_timeout = 200
+format = "$username$hostname$directory$git_branch${custom.git_dirty}$character"
+
+[username]
+show_always = true
+format = "[$user](cyan)[@](white)"
+
+[hostname]
+ssh_only = false
+format = "[$hostname](purple)[:](white)"
+
+[directory]
+truncation_length = 1
+truncate_to_repo = false
+format = "[$path](green)"
+
+[git_branch]
+format = " [\\($branch](yellow)"
+
+[custom.git_dirty]
+when = "git rev-parse --is-inside-work-tree >/dev/null 2>&1"
+command = "git status --porcelain | grep -q . && printf '*)' || printf ')'"
+format = "[$output](yellow)"
+
+[character]
+success_symbol = " \\$"
+error_symbol = " \\$"

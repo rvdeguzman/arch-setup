@@ -1,0 +1,23 @@
+# Official Arch repositories only. Bootloader installed by archinstall.
+base
+linux
+linux-firmware
+limine
+sudo
+git
+make
+python
+curl
+openssh
+iwd
+impala
+bluez
+bluetui
+tailscale
+pipewire
+pipewire-alsa
+pipewire-pulse
+wireplumber
+alsa-utils
+polkit
+zram-generator

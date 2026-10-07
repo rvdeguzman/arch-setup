@@ -1,0 +1,2 @@
+# Review packaging, especially obsolete moused references, before installing.
+minibook-support-git

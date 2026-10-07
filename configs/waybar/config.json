@@ -1,0 +1,31 @@
+{
+  "layer": "top",
+  "position": "top",
+  "height": 26,
+  "modules-left": ["hyprland/workspaces"],
+  "modules-center": ["clock"],
+  "modules-right": ["custom/tailscale", "network", "bluetooth", "pulseaudio", "battery", "tray"],
+  "clock": {"format": "{:%a %H:%M}"},
+  "network": {
+    "interface": "wl*",
+    "format-wifi": "{essid}",
+    "format-disconnected": "Wi-Fi off",
+    "on-click": "ghostty -e impala"
+  },
+  "bluetooth": {
+    "format": "BT {status}",
+    "on-click": "ghostty -e bluetui"
+  },
+  "pulseaudio": {
+    "format": "vol {volume}%",
+    "format-muted": "muted",
+    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+  },
+  "battery": {"format": "{capacity}%", "format-charging": "+{capacity}%"},
+  "custom/tailscale": {
+    "exec": "tailscale status --json 2>/dev/null | jq -r '\"TS \" + (.BackendState // \"offline\")'",
+    "interval": 30,
+    "tooltip": false
+  },
+  "tray": {"spacing": 8}
+}

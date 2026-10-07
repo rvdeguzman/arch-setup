@@ -1,0 +1,24 @@
+# scope	host	source or @symlink	target relative to home or root	mode
+user	all	configs/zsh/zshrc	.zshrc	0644
+user	all	configs/starship.toml	.config/starship.toml	0644
+user	all	configs/ghostty/config	.config/ghostty/config	0644
+user	all	configs/ghostty/gruvbox.conf	.config/ghostty/gruvbox.conf	0644
+user	all	configs/ghostty/miasma.conf	.config/ghostty/miasma.conf	0644
+user	all	configs/ghostty/shaders/cursor_warp.glsl	.config/ghostty/shaders/cursor_warp.glsl	0644
+user	all	configs/ghostty/shaders/cursor_blaze.glsl	.config/ghostty/shaders/cursor_blaze.glsl	0644
+user	all	configs/tmux/tmux.conf	.config/tmux/tmux.conf	0644
+user	all	configs/herdr/config.toml	.config/herdr/config.toml	0644
+user	all	configs/hypr/hyprland.lua	.config/hypr/hyprland.lua	0644
+user	all	configs/hypr/hypridle.conf	.config/hypr/hypridle.conf	0644
+user	all	configs/hypr/hyprlock.conf	.config/hypr/hyprlock.conf	0644
+user	all	configs/waybar/config.json	.config/waybar/config.json	0644
+user	all	configs/waybar/style.css	.config/waybar/style.css	0644
+user	all	configs/mako/config	.config/mako/config	0644
+user	minibook	hosts/minibook/host.lua	.config/hypr/host.lua	0644
+user	t14	hosts/t14/host.lua	.config/hypr/host.lua	0644
+system	all	system/network/20-wlan.network	etc/systemd/network/20-wlan.network	0644
+system	all	system/network/20-ethernet.network	etc/systemd/network/20-ethernet.network	0644
+system	all	system/iwd/main.conf	etc/iwd/main.conf	0644
+system	all	@/run/systemd/resolve/stub-resolv.conf	etc/resolv.conf	0644
+system	all	system/zram-generator.conf	etc/systemd/zram-generator.conf	0644
+system	all	system/ly/arch-hyprland.desktop	etc/ly/custom-sessions/arch-hyprland.desktop	0644

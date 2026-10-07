@@ -1,0 +1,1 @@
+# Populate after auditing Intel/AMD variant and actual devices.

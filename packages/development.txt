@@ -1,0 +1,10 @@
+# Included by default; uv remains responsible for project Python environments.
+clang
+gdb
+ninja
+pkgconf
+raylib
+typescript
+typescript-language-server
+ast-grep
+shellcheck

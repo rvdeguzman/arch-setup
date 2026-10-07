@@ -1,0 +1,243 @@
+#!/usr/bin/env bash
+# Plain Bash setup. No stage runs implicitly; Make provides the public interface.
+set -euo pipefail
+source "$(dirname -- "${BASH_SOURCE[0]}")/scripts/lib.sh"
+
+ACTION=${1:-plan}
+[[ $# -le 1 ]] || { die 'Usage: ./setup ACTION (configure via HOST/DEV/EXTRA/PACKAGE)'; exit 1; }
+if [[ -n ${ARCH_SETUP_USER_HOME:-} && $ACTION != _system && $ACTION != _services ]]; then
+  die 'ARCH_SETUP_USER_HOME is reserved for the sudo helper'; exit 1
+fi
+load_settings
+build_package_lists
+service_names
+
+case "$ACTION" in
+  plan)
+    printf '%s | filesystem=%s | encryption=no\n' "$HOST_NAME" "$FILESYSTEM"
+    printf '\nOfficial packages:\n'; printf '  %s\n' "${OFFICIAL[@]}"
+    printf '\nSeparate reviewed AUR packages:\n'; printf '  %s\n' "${AUR[@]}"
+    printf '\nExternal checkouts:\n'
+    while IFS=$'\t' read -r name url target; do
+      [[ -n $name && $name != \#* ]] || continue
+      printf '  %s -> ~/%s\n' "$name" "$target"
+    done < "$ROOT/sources.tsv"
+    printf '\nSeparate installers: pi, Herdr, Herdr plugin, Doom core\n'
+    printf 'Enable-only services:\n'; printf '  %s\n' "${SERVICES[@]}" "${AUR_SERVICES[@]}"
+    printf 'Ly will mask getty@%s; other consoles stay available.\n' "$LY_TTY"
+    printf 'Boot setup is a separate pre-reboot checkpoint. No snapshots configured.\n'
+    if [[ $AUDITED != 1 ]]; then printf 'WARNING: hardware audit pending; mutating targets refuse this host.\n'; fi
+    ;;
+  diff)
+    load_files user "$HOME_DIR"; preview_files 1
+    load_files system /; preview_files 1
+    ;;
+  aur-plan)
+    printf '%s\n' "${AUR[@]}"
+    printf 'For each: make aur-fetch PACKAGE=name; make aur-review PACKAGE=name; make aur-install PACKAGE=name\n'
+    ;;
+  aur-review)
+    validate_aur_package; review_aur
+    ;;
+  check)
+    failed=0
+    printf 'Host: %s\n' "$HOST_NAME"
+    if command -v omarchy >/dev/null 2>&1 || [[ -d $HOME_DIR/.local/share/omarchy ]]; then
+      printf 'INFO: Omarchy detected. Inspection allowed; applying this repo is blocked.\n'
+    fi
+    for package in "${OFFICIAL[@]}" "${AUR[@]}"; do
+      if ! pacman -Q "$package" >/dev/null 2>&1; then printf 'MISSING package: %s\n' "$package"; failed=1; fi
+    done
+    for cmd in pi herdr brave 1password sioyek uv clang typst; do
+      if command -v "$cmd" >/dev/null 2>&1; then printf 'OK executable: %s\n' "$cmd";
+      else printf 'WARN missing executable: %s\n' "$cmd"; failed=1; fi
+    done
+    for unit in "${SERVICES[@]}" "${AUR_SERVICES[@]}"; do
+      state=$(systemctl is-enabled "$unit" 2>/dev/null || true)
+      printf 'SERVICE %s: %s\n' "$unit" "${state:-unavailable}"
+      [[ $state == enabled || $state == enabled-runtime ]] || failed=1
+    done
+    load_files user "$HOME_DIR"; preview_files
+    for row in "${FILE_ROWS[@]}"; do
+      IFS=$'\t' read -r source target mode <<< "$row"
+      file_same "$source" "$target" "$mode" || failed=1
+    done
+    load_files system /; preview_files
+    for row in "${FILE_ROWS[@]}"; do
+      IFS=$'\t' read -r source target mode <<< "$row"
+      file_same "$source" "$target" "$mode" || failed=1
+    done
+    printf 'Config drift is listed above; physical hardware checks remain manual.\n'
+    if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+      errors=$(hyprctl configerrors) || failed=1
+      if [[ -n $errors ]]; then printf 'WARN: current Hyprland has configuration errors.\n'; failed=1;
+      else printf 'Current Hyprland has no errors; this does NOT validate the unapplied repo config.\n'; fi
+    fi
+    exit "$failed"
+    ;;
+  boot-check)
+    failed=0
+    if [[ ! -r /boot/limine.conf ]]; then die 'Cannot read /boot/limine.conf; inspect the actual ESP configuration'; exit 1; fi
+    if [[ -n $LIMINE_ROTATION ]]; then
+      if grep -Eq "^[[:space:]]*interface_rotation:[[:space:]]*$LIMINE_ROTATION[[:space:]]*$" /boot/limine.conf; then
+        printf 'OK Limine menu rotation: %s\n' "$LIMINE_ROTATION"
+      else printf 'WARN missing Limine rotation: %s\n' "$LIMINE_ROTATION"; failed=1; fi
+    fi
+    IFS= read -r cmdline < /proc/cmdline
+    for arg in "${KERNEL_ARGUMENTS[@]}"; do
+      if [[ " $cmdline " == *" $arg "* ]]; then printf 'OK running kernel argument: %s\n' "$arg";
+      else printf 'WARN missing running kernel argument: %s\n' "$arg"; failed=1; fi
+    done
+    printf 'Read-only. Verify new kernel/UKI updates, console/Ly rotation, and recovery boot manually.\n'
+    exit "$failed"
+    ;;
+  packages|sources|apply-user|apply-system|services|aur-fetch|aur-install|pi|herdr-fetch|herdr-install|herdr-plugins|doom|shell|_system|_services)
+    require_fresh_arch
+    if [[ $ACTION == _system || $ACTION == _services ]]; then
+      (( EUID == 0 )) && [[ -n ${SUDO_USER:-} && -n ${ARCH_SETUP_USER_HOME:-} ]] || {
+        die 'Internal stage requires the sudo helper'; exit 1;
+      }
+      account_home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+      [[ $(realpath -- "$account_home") == "$HOME_DIR" ]] || { die 'Helper home does not match invoking user'; exit 1; }
+    else require_user; fi
+
+    case "$ACTION" in
+      packages)
+        printf 'Command:'; printf ' %q' sudo pacman -Syu --needed "${OFFICIAL[@]}"; printf '\n'
+        confirm 'Full system upgrade + official packages. No automatic package removals.' INSTALL
+        sudo pacman -Syu --needed "${OFFICIAL[@]}"
+        ;;
+      apply-user)
+        load_files user "$HOME_DIR"; preview_files 1
+        [[ -f $HOME_DIR/.oh-my-zsh/oh-my-zsh.sh ]] || { die 'Run make sources before applying the shell config'; exit 1; }
+        [[ ${XDG_CONFIG_HOME:-$HOME_DIR/.config} == "$HOME_DIR/.config" ]] || {
+          die 'Initial profile targets ~/.config; review custom XDG paths first'; exit 1;
+        }
+        confirm 'Copy displayed user files after private backups. Inspect your existing .zshrc locally first.' COPY
+        copy_files "$HOME_DIR" "$HOME_DIR/.local/state/arch-setup/backups"
+        if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+          hyprctl reload
+          errors=$(hyprctl configerrors)
+          [[ -z $errors ]] || { die 'Hyprland errors after apply: inspect locally and use the recorded backups'; exit 1; }
+        else printf 'No GUI session. Launch Hyprland and run make check to validate.\n'; fi
+        ;;
+      apply-system)
+        load_files system /; preview_files 1
+        require_no_conflicts
+        confirm 'Apply displayed system files after backups; no service restart or reboot.' SYSTEM
+        sudo env HOST="$HOST" ARCH_SETUP_USER_HOME="$HOME_DIR" "$ROOT/setup" _system
+        ;;
+      services)
+        printf 'Enable for next boot:\n'; printf '  %s\n' "${SERVICES[@]}" "${AUR_SERVICES[@]}"
+        printf 'Mask getty@%s.service; do not start Ly now.\n' "$LY_TTY"
+        require_no_conflicts
+        confirm 'Enable reviewed services only. No --now, network restart, or reboot.' SERVICES
+        sudo env HOST="$HOST" ARCH_SETUP_USER_HOME="$HOME_DIR" "$ROOT/setup" _services
+        ;;
+      _system)
+        require_no_conflicts
+        load_files system /; copy_files / /var/backups/arch-setup
+        ;;
+      _services)
+        require_no_conflicts
+        load_files system /
+        for row in "${FILE_ROWS[@]}"; do
+          IFS=$'\t' read -r source target mode <<< "$row"
+          file_same "$source" "$target" "$mode" || { die "Apply system config first: $target"; exit 1; }
+        done
+        SERVICES+=("${AUR_SERVICES[@]}")
+        for unit in "${SERVICES[@]}"; do
+          systemctl cat "$unit" >/dev/null || { die "Missing service $unit: install reviewed packages first"; exit 1; }
+        done
+        systemctl daemon-reload
+        systemctl mask "getty@$LY_TTY.service"
+        systemctl enable "${SERVICES[@]}"
+        printf 'Enabled for next boot. No services started/restarted. Reboot manually when ready.\n'
+        ;;
+      sources)
+        # Validate all existing paths before cloning any missing checkout.
+        pending=()
+        while IFS=$'\t' read -r name url target; do
+          [[ -n $name && $name != \#* ]] || continue
+          safe_relative "$target"; path="$HOME_DIR/$target"
+          no_symlink_parents "$path" "$HOME_DIR"
+          status=0; checkout_valid "$path" "$url" || status=$?
+          case $status in
+            0) printf 'KEEP %s: no pull/reset\n' "$path" ;;
+            2) pending+=("$url"$'\t'"$path") ;;
+            *) exit "$status" ;;
+          esac
+        done < "$ROOT/sources.tsv"
+        confirm 'Clone missing declared checkouts. Existing matching repositories remain untouched.' CLONE
+        for row in "${pending[@]}"; do
+          IFS=$'\t' read -r url path <<< "$row"
+          mkdir -p -- "${path%/*}"
+          git clone --depth 1 -- "$url" "$path"
+        done
+        ;;
+      aur-fetch)
+        validate_aur_package
+        status=0; checkout_valid "$AUR_DIR" "https://aur.archlinux.org/$PACKAGE.git" || status=$?
+        case $status in
+          0) printf 'Existing checkout kept without pulling/resetting. Review locally.\n' ;;
+          2)
+            confirm "Fetch $PACKAGE build scripts only; no build/install." FETCH
+            mkdir -p -- "${AUR_DIR%/*}"
+            git clone -- "https://aur.archlinux.org/$PACKAGE.git" "$AUR_DIR"
+            ;;
+          *) exit "$status" ;;
+        esac
+        ;;
+      aur-install)
+        validate_aur_package; review_aur
+        confirm 'Execute the displayed AUR build/install scripts; dependencies may require sudo.' "BUILD $PACKAGE"
+        (cd -- "$AUR_DIR" && makepkg --syncdeps --install)
+        ;;
+      pi)
+        if command -v pi >/dev/null 2>&1; then printf 'Existing pi preserved; upgrades are separate.\n';
+        else
+          confirm 'Install current npm pi release into ~/.local; no version pin is implied.' 'INSTALL PI'
+          npm install --global --prefix "$HOME_DIR/.local" @earendil-works/pi-coding-agent
+        fi
+        ;;
+      herdr-fetch)
+        path="$HOME_DIR/.cache/arch-setup/herdr-install.sh"
+        no_symlink_parents "$path" "$HOME_DIR"
+        [[ ! -e $path && ! -L $path ]] || { die 'Installer exists: inspect it, do not overwrite blindly'; exit 1; }
+        confirm 'Download official Herdr installer for review. Do not execute it.' FETCH
+        mkdir -p -- "${path%/*}"
+        curl --fail --location --proto '=https' --output "$path" https://herdr.dev/install.sh
+        sha256sum -- "$path"
+        ;;
+      herdr-install)
+        path="$HOME_DIR/.cache/arch-setup/herdr-install.sh"
+        no_symlink_parents "$path" "$HOME_DIR"
+        [[ -f $path && ! -L $path ]] || { die 'Fetch installer first'; exit 1; }
+        while IFS= read -r line || [[ -n $line ]]; do printf '%s\n' "$line"; done < "$path"
+        sha256sum -- "$path"
+        confirm 'Execute this installer; it controls its own installation location/behavior. Read it first.' 'INSTALL HERDR'
+        sh "$path"
+        ;;
+      herdr-plugins)
+        confirm 'Install the Herdr Vim-navigation plugin declared by your config.' 'INSTALL PLUGIN'
+        herdr plugin install paulbkim-dev/vim-herdr-navigation --yes
+        ;;
+      doom)
+        core="$HOME_DIR/.config/emacs"
+        no_symlink_parents "$core" "$HOME_DIR"
+        [[ ! -e $core && ! -L $core && ! -e $HOME_DIR/.emacs.d && ! -L $HOME_DIR/.emacs.d ]] || {
+          die 'Existing Emacs core/config: inspect manually, no overwrite/update automated'; exit 1;
+        }
+        [[ -f $HOME_DIR/.config/doom/init.el ]] || { die 'Clone Doom config with make sources first'; exit 1; }
+        confirm 'Clone Doom core and run its interactive installer.' 'INSTALL DOOM'
+        git clone --depth 1 -- https://github.com/doomemacs/core "$core"
+        "$core/bin/doom" install
+        ;;
+      shell)
+        confirm 'Change login shell to /usr/bin/zsh; no shell config files changed by this stage.' 'CHANGE SHELL'
+        chsh -s /usr/bin/zsh
+        ;;
+    esac
+    ;;
+  *) die "Unknown action: $ACTION"; exit 1 ;;
+esac

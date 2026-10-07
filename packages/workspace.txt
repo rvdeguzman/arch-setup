@@ -1,0 +1,37 @@
+ghostty
+emacs-wayland
+neovim
+tmux
+zsh
+starship
+zoxide
+bat
+btop
+fd
+fzf
+github-cli
+lazygit
+ripgrep
+tldr
+tree
+jq
+bc
+unzip
+wget
+coreutils
+findutils
+tar
+aspell
+aspell-en
+libvterm
+# Native editor packages and reviewed AUR builds need build tools too.
+base-devel
+cmake
+libtool
+tree-sitter-cli
+typst
+tinymist
+uv
+# Node supports pi even when development tools are not requested.
+nodejs-lts-krypton
+npm

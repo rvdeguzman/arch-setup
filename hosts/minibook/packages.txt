@@ -1,0 +1,5 @@
+intel-ucode
+intel-media-driver
+sof-firmware
+thermald
+power-profiles-daemon

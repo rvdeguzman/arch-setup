@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Arch Hyprland (UWSM)
+Comment=Personal Hyprland session; choose Ly's shell entry for console-only use
+Exec=uwsm start -e -D Hyprland hyprland.desktop
+TryExec=uwsm
+DesktopNames=Hyprland
+Type=Application

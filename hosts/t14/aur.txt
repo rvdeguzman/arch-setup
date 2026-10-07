@@ -1,0 +1,1 @@
+# No hardware-specific packages assumed before the audit.
