@@ -10,7 +10,7 @@ This is an initial, reviewed bootstrap repository for **fresh Arch installations
 - Hyprland, Ly, Waybar, Fuzzel; Ghostty opens as the default workspace.
 - Wi-Fi: Impala + iwd + systemd-networkd + systemd-resolved; no NetworkManager.
 - Bluetooth: BlueZ + bluetui. Tailscale is a system service.
-- Sioyek, Doom Emacs, Neovim, pi, Ghostty, Herdr, tmux, Typst.
+- Sioyek, Doom Emacs, Neovim, pi, Ghostty, Herdr, tmux, Typst, Yazi.
 - Zsh + Oh My Zsh + Starship and the familiar CLI utilities.
 - Python via uv, C/raylib, TypeScript/Node included by default. Go optional.
 - Brave and 1Password. No credential import or authentication is automated.
@@ -20,17 +20,29 @@ This is an initial, reviewed bootstrap repository for **fresh Arch installations
 
 Read [the installation runbook](docs/install.md) before running mutating targets.
 
+On a fresh Arch installation, as your normal user:
+
 ```sh
-make plan HOST=minibook       # read-only package/service overview
-make diff HOST=minibook       # preview selected file differences
-make bootstrap HOST=minibook  # plan only; NEVER installs automatically
-make test
-make lint
+make plan                   # read-only; auto-detects the audited hardware profile
+make diff                   # preview selected file differences
+make install                # one command: packages, configs, apps, service enablement, checks
 ```
+
+`HOST=auto` is the default. It selects only an **audited product + CPU match** (currently MiniBook X N100). Unknown hardware, other MiniBook CPUs, and the unaudited T14 are refused before installation. Explicit `HOST=minibook` still verifies the actual hardware; it is not a bypass. To inspect from another machine, use `make plan HOST=minibook` or `HOST=t14`.
+
+`make install` runs stages sequentially, even under `make -j`: official packages → Paru → AUR → source checkouts → config diff/copy → pi → Herdr/plugin → Doom → enable services → check. It preflights service/path/checkout conflicts before installing anything. Failures stop immediately with the failed stage and retry command. Native sudo/package-manager/installer prompts remain interactive, including Paru's build-script review.
+
+Reruns preserve existing pi/Herdr, matching source checkouts, and the declared Herdr plugin without upgrading them. A complete cached Herdr installer is reused and printed with its SHA256 before execution. Matching Doom core is kept without pulling/resetting, then its native installer is rerun to finish/check setup. Incomplete or unrelated checkouts require manual inspection. Official packages still perform a full system upgrade, and copying configs still backs up any changed target: rerunning is **not** a general update or config-sync command.
+
+Boot changes, login-shell/account changes, Wi-Fi association, credentials/sign-ins, hardware acceptance, and reboot remain explicit/manual. `PACKAGE=name` and `BOOT_HOOK=1` are rejected by the full install; use separately reviewed AUR stages for those. `DEV=0` and `EXTRA=go` work with the one-command path.
+
+For repository validation, run `make test` and `make lint`. `make bootstrap` remains a read-only plan, never an install.
 
 Scripts require Bash 4.3+ (provided by Arch) and standard Arch tools, not Python. The `python` package is part of the desired machine/tooling environment, not an installer dependency.
 
-### Explicit installation stages
+### Advanced: individual installation stages
+
+These are available for debugging or deliberately running only part of setup; the normal path is `make install`.
 
 Run as the normal user. Invoking a target runs that stage directly. Pacman, Paru, sudo, and external installers retain their own prompts. System stages use sudo in your own terminal.
 
@@ -44,7 +56,7 @@ make apply-user HOST=minibook  # back up then copy selected user files
 make apply-system HOST=minibook
 ```
 
-Install Paru once with `make paru` before `make aur`. The AUR target passes the selected lists to `paru -S --needed --review --aur`, with interactive build-script review. `make aur-plan` previews the selection; `PACKAGE=name` optionally selects one declared package. Official packages still use pacman. External installers, boot checks and service activation are separate steps documented in the runbook. `make services` enables services for the next boot, not `--now`; it refuses competing network/display managers.
+Install Paru once with `make paru` before `make aur`. The AUR target passes the selected lists to `paru -S --needed --review --aur`, with interactive build-script review. `make aur-plan` previews the selection; `PACKAGE=name` optionally selects one declared package. Official packages still use pacman. The one-command path orchestrates external installers and service enablement after configs; boot checks stay separate. Details and individual stages are documented in the runbook. `make services` enables services for the next boot, not `--now`; it refuses competing network/display managers.
 
 ### Package lists are the source of intent
 
@@ -79,6 +91,22 @@ These lists do **not** pin rolling Arch versions or record every dependency. The
 - No stored passwords, wireless profiles, Tailscale identity, history, or editor/agent caches.
 
 Backups are a safety measure for applying files, not an OS backup. Restoring them is a deliberate manual action after inspecting the manifest and preserving newer edits.
+
+## Private SSH setup
+
+```sh
+make ssh SSH_USER=rv
+# Or read an existing private password file instead of prompting:
+make ssh SSH_USER=rv SSH_PASSWORD_FILE="$HOME/.ssh/rv-password"
+# Optional alternate list:
+make ssh SSH_USER=rv SSH_HOSTS_FILE=/path/to/hosts.txt
+```
+
+`configs/ssh/hosts.txt` contains komagome, shibuya, aoyama, and meguro (one literal hostname per line; comments allowed). This is a separate, explicitly invoked user-only stage, not part of `make install`; it does not install packages, connect to hosts, or depend on a hardware profile. Requires OpenSSH and Bash.
+
+The target prompts without echoing unless `SSH_PASSWORD_FILE` is supplied. Do **not** pass passwords on the command line or put them in Git. A shared password is saved in plaintext at `~/.ssh/arch-setup/password` (mode 600, private parent directory); use SSH keys or a password-manager agent for stronger security. Back up that directory securely before wiping.
+
+Existing SSH/shell files are backed up under `~/.ssh/arch-setup/backup.*`. The target adds an SSH config Include and sources a host-scoped helper from Bash/Zsh startup files. Open a new terminal, or run `source ~/.ssh/arch-setup/shell.sh`, then `ssh komagome`. Only **host-first** calls use the saved password; `ssh -v komagome`, other hosts, and `command ssh` retain normal prompts. Host-key and MFA prompts are never answered with the saved password. The configured user takes precedence over later matching SSH config entries; existing entries otherwise remain intact. Direct `ssh`, not scp/sftp, is wrapped.
 
 ## Hardware profiles
 
@@ -149,6 +177,6 @@ The external personal Doom/Neovim repos are not rewritten. If those repos still 
 
 ## Validation limits
 
-Tests write only temporary fixtures, covering package/path validation, backups/idempotence, symlinks, source-checkout conflicts, Paru dispatch without wrapper prompts, refusal paths, service conflicts, and Lua evaluation with stubbed APIs. They do not start Hyprland or install/build applications. Lint reports tools it cannot run.
+Tests write only temporary fixtures, covering hardware detection, install ordering/failure/preflight behavior, repeatable app stages, package/path validation, backups/idempotence, symlinks, source-checkout conflicts, Paru dispatch without wrapper prompts, refusal paths, service conflicts, and Lua evaluation with stubbed APIs. They do not start Hyprland or install/build applications. Lint reports tools it cannot run.
 
 Bootloader installation/update integration, Brave/1Password browser integration, Doom build/runtime behavior, Herdr graphics, and hardware acceptance are not certified by these tests. See the runbook for the explicit checkpoints.

@@ -24,8 +24,39 @@ safe_relative() {
   done
 }
 
+hardware_product() {
+  local product
+  IFS= read -r product < /sys/class/dmi/id/product_name || return
+  printf '%s\n' "$product"
+}
+
+hardware_cpu_matches() { grep -Fq -- "$1" /proc/cpuinfo; }
+
+detect_host() {
+  local product profile match
+  local -a matches=()
+  product=$(hardware_product) || { die 'Cannot read hardware identity; automatic detection refused'; return 1; }
+  for profile in "$ROOT"/hosts/*/host.sh; do
+    # Profile data is evaluated in a subshell so rejected profiles cannot leak settings.
+    if match=$(
+      # shellcheck source=/dev/null
+      source "$profile"
+      [[ $AUDITED == 1 && -n $PRODUCT_NAME && -n $CPU_MATCH && $product == "$PRODUCT_NAME" ]] || exit 1
+      hardware_cpu_matches "$CPU_MATCH" || exit 1
+      profile=${profile%/host.sh}
+      printf '%s\n' "${profile##*/}"
+    ); then matches+=("$match"); fi
+  done
+  [[ ${#matches[@]} == 1 ]] || {
+    die "No unique audited profile for hardware '$product'. Nothing installed. Inspect with make plan HOST=minibook or HOST=t14; audit unsupported hardware before installing."
+    return 1
+  }
+  printf '%s\n' "${matches[0]}"
+}
+
 load_settings() {
-  HOST=${HOST:-minibook}
+  HOST=${HOST:-auto}
+  if [[ $HOST == auto ]]; then HOST=$(detect_host) || return; fi
   DEV=${DEV:-1}
   EXTRA=${EXTRA:-}
   PACKAGE=${PACKAGE:-}
@@ -198,11 +229,13 @@ require_fresh_arch() {
   fi
   [[ $AUDITED == 1 ]] || { die 'Host hardware audit is pending; only planning is allowed'; return 1; }
   local product version
-  IFS= read -r product < /sys/class/dmi/id/product_name
+  product=$(hardware_product) || { die 'Cannot read hardware identity'; return 1; }
   [[ -z $PRODUCT_NAME || $product == "$PRODUCT_NAME" ]] || { die 'Hardware model does not match profile'; return 1; }
-  IFS= read -r version < /sys/class/dmi/id/product_version
-  [[ -z ${PRODUCT_VERSION:-} || $version == "$PRODUCT_VERSION" ]] || { die 'Hardware model does not match profile'; return 1; }
-  [[ -z $CPU_MATCH ]] || grep -Fq -- "$CPU_MATCH" /proc/cpuinfo || { die 'CPU does not match profile'; return 1; }
+  if [[ -n ${PRODUCT_VERSION:-} ]]; then
+    IFS= read -r version < /sys/class/dmi/id/product_version || { die 'Cannot read hardware version'; return 1; }
+    [[ $version == "$PRODUCT_VERSION" ]] || { die 'Hardware model does not match profile'; return 1; }
+  fi
+  [[ -z $CPU_MATCH ]] || hardware_cpu_matches "$CPU_MATCH" || { die 'CPU does not match profile'; return 1; }
 }
 
 require_user() { (( EUID != 0 )) || { die 'Run make as your normal user; system stages use sudo'; return 1; }; }
@@ -217,6 +250,41 @@ checkout_valid() {
   origin=${origin%.git}; expected=${expected%.git}
   origin=${origin/#git@github.com:/https:\/\/github.com\/}
   [[ $origin == "$expected" ]] || { die "Unexpected origin: $path"; return 1; }
+}
+
+validate_source_checkouts() {
+  local name url target path status
+  CHECKOUT_PENDING=()
+  while IFS=$'\t' read -r name url target; do
+    [[ -n $name && $name != \#* ]] || continue
+    safe_relative "$target" || return
+    path="$HOME_DIR/$target"
+    no_symlink_parents "$path" "$HOME_DIR" || return
+    status=0; checkout_valid "$path" "$url" || status=$?
+    case $status in
+      0) printf 'KEEP %s: no pull/reset\n' "$path" ;;
+      2) CHECKOUT_PENDING+=("$url"$'\t'"$path") ;;
+      *) return "$status" ;;
+    esac
+  done < "$ROOT/sources.tsv"
+}
+
+validate_doom_core() {
+  local core="$HOME_DIR/.config/emacs" status=0
+  no_symlink_parents "$core/bin/doom" "$HOME_DIR" || return
+  [[ ! -e $HOME_DIR/.emacs.d && ! -L $HOME_DIR/.emacs.d ]] || {
+    die 'Existing legacy Emacs path: inspect manually; no overwrite automated'; return 1;
+  }
+  checkout_valid "$core" https://github.com/doomemacs/core || status=$?
+  case $status in
+    0)
+      [[ -f $core/bin/doom && -x $core/bin/doom && ! -L $core/bin/doom ]] || {
+        die 'Incomplete/unsafe Doom core: inspect manually before retrying'; return 1;
+      }
+      ;;
+    2) ;;
+    *) return "$status" ;;
+  esac
 }
 
 service_names() {

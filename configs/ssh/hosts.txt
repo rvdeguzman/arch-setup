@@ -1,0 +1,5 @@
+# One SSH hostname per line; no credentials here.
+komagome
+shibuya
+aoyama
+meguro

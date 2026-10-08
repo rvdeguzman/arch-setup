@@ -2,9 +2,10 @@
   "layer": "top",
   "position": "top",
   "height": 26,
+  "spacing": 12,
   "modules-left": ["hyprland/workspaces"],
   "modules-center": ["clock"],
-  "modules-right": ["custom/tailscale", "network", "bluetooth", "pulseaudio", "battery", "tray"],
+  "modules-right": ["custom/tailscale", "pulseaudio", "network", "bluetooth", "battery", "tray"],
   "clock": {"format": "{:%a %H:%M}"},
   "network": {
     "interface": "wl*",
@@ -21,7 +22,11 @@
     "format-muted": "muted",
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
   },
-  "battery": {"format": "{capacity}%", "format-charging": "+{capacity}%"},
+  "battery": {
+    "format": "{capacity}%",
+    "format-charging": "+{capacity}%",
+    "on-click": "~/.config/waybar/power-menu.sh"
+  },
   "custom/tailscale": {
     "exec": "tailscale status --json 2>/dev/null | jq -r '\"TS \" + (.BackendState // \"offline\")'",
     "interval": 30,

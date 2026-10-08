@@ -15,6 +15,30 @@ test_case() {
   else printf 'FAIL %s\n' "$1" >&2; failures=$((failures + 1)); fi
 }
 
+power_menu() {
+  export POWER_TEST_LOG="$scratch/power-menu.log" POWER_TEST_CHOICE=2
+  # Exported mocks are invoked by the child script.
+  # shellcheck disable=SC2329
+  busctl() {
+    if [[ $2 == get-property ]]; then printf 's "balanced"\n';
+    else printf '%s\n' "$*" >> "$POWER_TEST_LOG"; fi
+  }
+  # shellcheck disable=SC2329
+  fuzzel() { local input; input=$(command cat); [[ $input == *'> Balanced'* ]] || return 2; [[ $POWER_TEST_CHOICE != cancel ]] || return 1; printf '%s\n' "$POWER_TEST_CHOICE"; }
+  export -f busctl fuzzel
+  bash "$PROJECT/configs/waybar/power-menu.sh" || return
+  grep -q 'ActiveProfile s performance' "$POWER_TEST_LOG" || return
+  rm "$POWER_TEST_LOG"
+  POWER_TEST_CHOICE=cancel bash "$PROJECT/configs/waybar/power-menu.sh" || return
+  [[ ! -e $POWER_TEST_LOG ]] || return
+  POWER_TEST_CHOICE=1 bash "$PROJECT/configs/waybar/power-menu.sh" || return
+  [[ ! -e $POWER_TEST_LOG ]] || return
+  POWER_TEST_CHOICE=invalid bash "$PROJECT/configs/waybar/power-menu.sh" || return
+  [[ ! -e $POWER_TEST_LOG ]]
+}
+
+test_case 'power menu selects profile, marks current and safely cancels' power_menu
+
 paths() {
   safe_relative .config/hypr/host.lua || return
   safe_relative configs/zsh/zshrc || return
@@ -62,7 +86,9 @@ manifest() {
   HOST=minibook
   mkdir -p "$scratch/manifests/home" "$scratch/manifests/system" || return
   load_files user "$scratch/manifests/home" || return
-  [[ ${#FILE_ROWS[@]} == 16 ]] || return
+  [[ ${#FILE_ROWS[@]} == 18 ]] || return
+  [[ "${FILE_ROWS[*]}" == *'configs/waybar/power-menu.sh'* ]] || return
+  [[ "${FILE_ROWS[*]}" == *'configs/fuzzel/fuzzel.ini'* ]] || return
   local row
   [[ "${FILE_ROWS[*]}" == *'hosts/minibook/host.lua'* ]] || return
   [[ "${FILE_ROWS[*]}" != *'hosts/t14/host.lua'* ]] || return

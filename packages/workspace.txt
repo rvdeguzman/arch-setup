@@ -1,6 +1,7 @@
 ghostty
 emacs-wayland
 neovim
+yazi
 tmux
 zsh
 starship

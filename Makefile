@@ -1,23 +1,28 @@
-HOST ?= minibook
+HOST ?= auto
 DEV ?= 1
 EXTRA ?=
 PACKAGE ?=
 BOOT_HOOK ?= 0
 export HOST DEV EXTRA PACKAGE BOOT_HOOK
 
-.PHONY: boot-rotation boot-rebuild help bootstrap plan diff packages apply-user apply-system services sources paru aur-plan aur pi herdr-fetch herdr-install herdr-plugins doom shell check boot-check test lint
+.PHONY: ssh install boot-rotation boot-rebuild help bootstrap plan diff packages apply-user apply-system services sources paru aur-plan aur pi herdr herdr-fetch herdr-install herdr-plugins doom shell check boot-check test lint
 
 help:
-	@printf '%s\n' 'Read-only: make plan | diff | check | boot-check | aur-plan' 'Fresh Arch stages: packages | paru | aur | sources | apply-user | apply-system | services' 'Targets run directly; package managers and external installers retain their own prompts.' 'AUR packages: make paru bootstraps the helper; make aur uses Paru with build-script review; optional PACKAGE=name selects one declared package.' 'Separate installs: pi | herdr-fetch | herdr-install | herdr-plugins | doom' 'make bootstrap shows the plan; it NEVER installs automatically.' 'Defaults: HOST=minibook DEV=1. Optional: DEV=0 EXTRA=go BOOT_HOOK=1.' 'Validation: make test | make lint'
+	@printf '%s\n' 'One-command fresh Arch setup: make install (auto-detects audited hardware; native prompts remain).' 'Read-only: make plan | diff | check | boot-check | aur-plan' 'Advanced stages: packages | paru | aur | sources | apply-user | apply-system | services' 'App stages: pi | herdr | herdr-fetch | herdr-install | herdr-plugins | doom' 'Stages run sequentially under install; failures stop before later stages.' 'No boot changes, shell/account changes, sign-ins, or reboot in make install.' 'make bootstrap shows the plan; it NEVER installs automatically.' 'Defaults: HOST=auto DEV=1. Explicit inspection: make plan HOST=minibook or HOST=t14.' 'Optional: DEV=0 EXTRA=go. PACKAGE=name and BOOT_HOOK=1 are for separate AUR stages only.' 'Private SSH: make ssh SSH_USER=rv (hosts: configs/ssh/hosts.txt; password prompt or SSH_PASSWORD_FILE).' 'Validation: make test | make lint'
 
 bootstrap: plan
 	@printf '\nNo changes made. Follow docs/install.md and run reviewed stages explicitly.\n'
 
-plan diff check boot-check boot-rotation boot-rebuild packages apply-user apply-system services sources paru aur-plan aur pi herdr-fetch herdr-install herdr-plugins doom shell:
+install plan diff check boot-check boot-rotation boot-rebuild packages apply-user apply-system services sources paru aur-plan aur pi herdr herdr-fetch herdr-install herdr-plugins doom shell:
 	./setup $@
+
+ssh:
+	@bash ./scripts/ssh.sh
 
 test:
 	./tests/run.sh
+	bash ./tests/install.sh
+	bash ./tests/ssh.sh
 
 lint:
 	./scripts/lint.sh

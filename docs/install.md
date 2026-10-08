@@ -8,6 +8,7 @@ This is a guided installation, not permission to wipe or modify an existing mach
 - Ensure this repo has been pushed to a remote or copied to another machine/USB. Creating a local Git repo does not make it available after wiping the SSD.
 - Save the working MiniBook audit; test its manual checklist while the old system is available.
 - Do not put secrets, iwd wireless profiles, or Tailscale machine state in Git. Plan to reconnect/re-authenticate.
+- Back up `~/.ssh/` privately, including any keys and local password-helper state. Host names alone are declared in `configs/ssh/hosts.txt`; after reinstalling, use the separate `make ssh SSH_USER=rv` stage to enter a password interactively or supply `SSH_PASSWORD_FILE` from a secure backup. See [private SSH setup](../README.md#private-ssh-setup). This stage is never run by `make install`.
 
 ## 2. Archinstall choices
 
@@ -59,7 +60,34 @@ make diff HOST=minibook
 
 On the T14, substitute `HOST=t14` in **every** command in this runbook, including those shown without `HOST=` (the default is `minibook`, which the T14's DMI check refuses). Package installation/apply will refuse an existing Omarchy installation, even if manually invoked.
 
-## 5. Official packages
+### One-command setup — normal path
+
+From the repo root, as your normal user:
+
+```sh
+make install
+# Optional selection, if wanted instead:
+# make install DEV=0 EXTRA=go
+```
+
+The default `HOST=auto` matches audited hardware by product name **and** CPU. Currently that means MiniBook X N100 only; unknown machines, a different MiniBook CPU, and the T14 stop before any installs. Explicit `HOST=minibook` still checks the real hardware. Planning another profile on a development machine uses an explicit `HOST`.
+
+The installer checks fresh Arch, normal-user execution, conflicting services, file paths, source checkout origins, and existing Doom/cache paths first. It then runs, strictly sequentially:
+
+1. Official packages, Paru helper, reviewed AUR packages.
+2. Source checkouts, displayed diff, backed-up user/system config copies.
+3. pi, Herdr (displayed installer + SHA256), Vim-navigation plugin, Doom's native installer.
+4. Service enablement **without starting services**, then `make check`.
+
+Remain at the terminal for sudo, pacman, Paru build-script review, and native installer prompts. There is no extra custom confirmation prompt. Review `.zshrc` locally before running: its existing contents are intentionally suppressed from diff output. To inspect a downloaded Herdr script before the full run, use the separate `make herdr-fetch` stage and read the cached file; the full run keeps that file rather than replacing it.
+
+On failure, no later stages run. Inspect the error/backups, resolve the issue, then rerun the printed `make install` command or troubleshoot the named stage. Existing pi/Herdr, matching source checkouts, and the declared plugin are retained without upgrading; matching Doom core is retained and its native installer reruns to finish/check setup. Conflicting/incomplete checkouts stop for inspection. A failed Herdr download is not published as an executable cache entry. Rerunning still invokes a full official-package upgrade and copies/backups drifted configs; it is not a day-to-day update command.
+
+`PACKAGE=name` and `BOOT_HOOK=1` are refused by the umbrella command: install optional boot hooks only through the explicit reviewed AUR stage. Boot rotation/rebuild, changing your login shell, authentication, and reboot are **not** included. After successful setup, complete the boot checkpoint and the manual checks in sections 9–10. No partitioning, formatting, bootloader installation, or account changes are automated.
+
+The following sections document individual stages for reference/troubleshooting; you do not need to run each one after a successful `make install`.
+
+## 5. Official packages (stage reference)
 
 ```sh
 make packages HOST=minibook
@@ -127,7 +155,7 @@ make doom
 make shell
 ```
 
-Each target runs its selected stage directly; native installer prompts remain. Existing pi is preserved; existing Doom core/legacy Emacs paths require manual inspection instead of overwrite. OMZ came from `make sources`, which does not run its shell-changing installer.
+Each target runs its selected stage directly; native installer prompts remain. `make herdr` combines fetch/display/install and preserves an existing Herdr binary. Existing pi and a matching declared Herdr plugin are also preserved. A matching Doom core with a safe executable CLI is kept without pull/reset and its native installer is rerun; unrelated, incomplete, symlinked, or legacy Emacs paths require manual inspection instead of overwrite. OMZ came from `make sources`, which does not run its shell-changing installer. `make shell` is an optional, explicitly invoked account change, never part of `make install`.
 
 Doom core/config/package layers are distinct. After install, run Doom's sync/doctor commands through its CLI as appropriate. Because the personal Doom configuration is its own repo, adjust stale LaTeX modules or platform-specific commands there—not by editing its generated state. Typst/Tinymist are the intended writing tools.
 

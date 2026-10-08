@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Plain Bash setup. No stage runs implicitly; Make provides the public interface.
+# Plain Bash setup. Make provides the public interface; install orchestrates explicit stages.
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/scripts/lib.sh"
 
@@ -22,7 +22,8 @@ case "$ACTION" in
       [[ -n $name && $name != \#* ]] || continue
       printf '  %s -> ~/%s\n' "$name" "$target"
     done < "$ROOT/sources.tsv"
-    printf '\nSeparate installers: Paru (make paru), pi, Herdr, Herdr plugin, Doom core\n'
+    printf '\nInstaller layers: Paru, pi, Herdr, Herdr plugin, Doom core\n'
+    printf 'make install runs packages, configs, apps, service enablement and checks in order.\n'
     printf 'Enable-only services:\n'; printf '  %s\n' "${SERVICES[@]}" "${AUR_SERVICES[@]}"
     printf 'Ly will mask getty@%s; other consoles stay available.\n' "$LY_TTY"
     printf 'Boot setup is a separate pre-reboot checkpoint. No snapshots configured.\n'
@@ -89,6 +90,13 @@ case "$ACTION" in
     printf 'Read-only. Verify new kernel/UKI updates, console/Ly rotation, and recovery boot manually.\n'
     exit "$failed"
     ;;
+  install)
+    require_fresh_arch
+    require_user
+    export PATH="$HOME_DIR/.local/bin:$PATH"
+    source "$ROOT/scripts/install.sh"
+    install_run
+    ;;
   boot-rotation|boot-rebuild)
     require_fresh_arch
     require_user
@@ -102,7 +110,7 @@ case "$ACTION" in
       sudo bash "$ROOT/scripts/boot-rotation.sh"
     fi
     ;;
-  packages|sources|apply-user|apply-system|services|paru|aur|pi|herdr-fetch|herdr-install|herdr-plugins|doom|shell|_system|_services)
+  packages|sources|apply-user|apply-system|services|paru|aur|pi|herdr|herdr-fetch|herdr-install|herdr-plugins|doom|shell|_system|_services)
     require_fresh_arch
     if [[ $ACTION == _system || $ACTION == _services ]]; then
       if ! { (( EUID == 0 )) && [[ -n ${SUDO_USER:-} && -n ${ARCH_SETUP_USER_HOME:-} ]]; }; then
@@ -110,7 +118,10 @@ case "$ACTION" in
       fi
       account_home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
       [[ $(realpath -- "$account_home") == "$HOME_DIR" ]] || { die 'Helper home does not match invoking user'; exit 1; }
-    else require_user; fi
+    else
+      require_user
+      export PATH="$HOME_DIR/.local/bin:$PATH"
+    fi
 
     case "$ACTION" in
       packages)
@@ -167,20 +178,9 @@ case "$ACTION" in
         ;;
       sources)
         # Validate all existing paths before cloning any missing checkout.
-        pending=()
-        while IFS=$'\t' read -r name url target; do
-          [[ -n $name && $name != \#* ]] || continue
-          safe_relative "$target"; path="$HOME_DIR/$target"
-          no_symlink_parents "$path" "$HOME_DIR"
-          status=0; checkout_valid "$path" "$url" || status=$?
-          case $status in
-            0) printf 'KEEP %s: no pull/reset\n' "$path" ;;
-            2) pending+=("$url"$'\t'"$path") ;;
-            *) exit "$status" ;;
-          esac
-        done < "$ROOT/sources.tsv"
+        validate_source_checkouts
         printf '%s\n' 'Cloning missing declared checkouts.'
-        for row in "${pending[@]}"; do
+        for row in "${CHECKOUT_PENDING[@]}"; do
           IFS=$'\t' read -r url path <<< "$row"
           mkdir -p -- "${path%/*}"
           git clone --depth 1 -- "$url" "$path"
@@ -238,13 +238,32 @@ case "$ACTION" in
           npm install --global --prefix "$HOME_DIR/.local" @earendil-works/pi-coding-agent
         fi
         ;;
+      herdr)
+        if command -v herdr >/dev/null 2>&1; then
+          printf 'Existing Herdr preserved; upgrades are separate.\n'
+        else
+          HOST="$HOST" "$ROOT/setup" herdr-fetch
+          HOST="$HOST" "$ROOT/setup" herdr-install
+          command -v herdr >/dev/null 2>&1 || { die 'Herdr installer finished but herdr is not on PATH; inspect before retrying'; exit 1; }
+        fi
+        ;;
       herdr-fetch)
         path="$HOME_DIR/.cache/arch-setup/herdr-install.sh"
         no_symlink_parents "$path" "$HOME_DIR"
-        [[ ! -e $path && ! -L $path ]] || { die 'Installer exists: inspect it, do not overwrite blindly'; exit 1; }
-        printf '%s\n' 'Downloading official Herdr installer for review.'
-        mkdir -p -- "${path%/*}"
-        curl --fail --location --proto '=https' --output "$path" https://herdr.dev/install.sh
+        if [[ -e $path || -L $path ]]; then
+          [[ -f $path && ! -L $path ]] || { die 'Unsafe/conflicting cached Herdr installer'; exit 1; }
+          printf 'Keeping cached Herdr installer for review; no redownload.\n'
+        else
+          printf '%s\n' 'Downloading official Herdr installer for review.'
+          mkdir -p -- "${path%/*}"
+          # Only publish a complete download; failed fetches cannot become runnable cache entries.
+          temp=$(mktemp "${path%/*}/.herdr-install-XXXXXX")
+          if curl --fail --location --proto '=https' --output "$temp" https://herdr.dev/install.sh; then
+            mv -T -- "$temp" "$path"
+          else
+            status=$?; rm -f -- "$temp"; exit "$status"
+          fi
+        fi
         sha256sum -- "$path"
         ;;
       herdr-install)
@@ -257,18 +276,31 @@ case "$ACTION" in
         sh "$path"
         ;;
       herdr-plugins)
-        printf '%s\n' 'Installing the Herdr Vim-navigation plugin declared by your config.'
-        herdr plugin install paulbkim-dev/vim-herdr-navigation --yes
+        plugins=$(herdr plugin list --json)
+        jq -e '.result.plugins | type == "array"' <<< "$plugins" >/dev/null || {
+          die 'Unexpected Herdr plugin list; inspect manually before installing'; exit 1;
+        }
+        if jq -e '.result.plugins[] | select(.plugin_id == "vim-herdr-navigation")' <<< "$plugins" >/dev/null; then
+          jq -e '.result.plugins[] | select(.plugin_id == "vim-herdr-navigation" and .source.kind == "github" and .source.owner == "paulbkim-dev" and .source.repo == "vim-herdr-navigation")' <<< "$plugins" >/dev/null || {
+            die 'Conflicting Vim-navigation plugin source; inspect manually'; exit 1;
+          }
+          printf 'Existing Herdr Vim-navigation plugin preserved (including its enabled/disabled preference).\n'
+        else
+          printf '%s\n' 'Installing the Herdr Vim-navigation plugin declared by your config.'
+          herdr plugin install paulbkim-dev/vim-herdr-navigation
+        fi
         ;;
       doom)
         core="$HOME_DIR/.config/emacs"
-        no_symlink_parents "$core" "$HOME_DIR"
-        [[ ! -e $core && ! -L $core && ! -e $HOME_DIR/.emacs.d && ! -L $HOME_DIR/.emacs.d ]] || {
-          die 'Existing Emacs core/config: inspect manually, no overwrite/update automated'; exit 1;
-        }
+        validate_doom_core
         [[ -f $HOME_DIR/.config/doom/init.el ]] || { die 'Clone Doom config with make sources first'; exit 1; }
-        printf '%s\n' 'Cloning Doom core and running its interactive installer.'
-        git clone --depth 1 -- https://github.com/doomemacs/core "$core"
+        if [[ -d $core ]]; then
+          printf '%s\n' 'Matching Doom core preserved; no pull/reset. Rerunning its native installer to finish/check setup.'
+        else
+          printf '%s\n' 'Cloning Doom core and running its interactive installer.'
+          git clone --depth 1 -- https://github.com/doomemacs/core "$core"
+          validate_doom_core
+        fi
         "$core/bin/doom" install
         ;;
       shell)

@@ -13,7 +13,9 @@ user	all	configs/hypr/hypridle.conf	.config/hypr/hypridle.conf	0644
 user	all	configs/hypr/hyprlock.conf	.config/hypr/hyprlock.conf	0644
 user	all	configs/waybar/config.json	.config/waybar/config.json	0644
 user	all	configs/waybar/style.css	.config/waybar/style.css	0644
+user	all	configs/waybar/power-menu.sh	.config/waybar/power-menu.sh	0755
 user	all	configs/mako/config	.config/mako/config	0644
+user	all	configs/fuzzel/fuzzel.ini	.config/fuzzel/fuzzel.ini	0644
 user	minibook	hosts/minibook/host.lua	.config/hypr/host.lua	0644
 user	t14	hosts/t14/host.lua	.config/hypr/host.lua	0644
 system	all	system/network/20-wlan.network	etc/systemd/network/20-wlan.network	0644
