@@ -1,1 +1,6 @@
-# Populate after auditing Intel/AMD variant and actual devices.
+# ThinkPad T14 Gen 2a: AMD CPU/iGPU, Realtek Wi-Fi (rtw89, via linux-firmware), AMD ACP audio.
+amd-ucode
+vulkan-radeon
+power-profiles-daemon
+# Lenovo ships BIOS/firmware updates through LVFS.
+fwupd

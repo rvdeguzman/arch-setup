@@ -57,6 +57,7 @@ Install Paru once with `make paru` before `make aur`. The AUR target passes the 
 | `packages/aur.txt` | Stable Sioyek AppImage, Brave, 1Password, Hunk; separate review/build |
 | `hosts/minibook/packages.txt` | Intel media/firmware and power components |
 | `hosts/minibook/aur.txt` | MiniBook tablet-mode support |
+| `hosts/t14/packages.txt` | T14 Gen 2a AMD microcode, Radeon Vulkan, power profiles, fwupd |
 | `packages/optional-go.txt` | `EXTRA=go` |
 | `packages/optional-boot-aur.txt` | `BOOT_HOOK=1`, only after choosing kernel-update integration |
 
@@ -82,7 +83,7 @@ Backups are a safety measure for applying files, not an OS backup. Restoring the
 ## Hardware profiles
 
 - **MiniBook:** audited N100 model. Limine rotation, kernel orientation, explicit DSI display/touch transforms, and tablet-mode support are documented in [the audit](docs/minibook-audit.md).
-- **T14:** placeholder only. Intel/AMD variant, firmware, and display/input behavior must be audited before applying. `make plan HOST=t14` works; mutating targets refuse it.
+- **T14:** ThinkPad T14 Gen 2a (AMD, machine types 20XK/20XL). Profile derived from the ArchWiki model page and Lenovo DMI strings, not an on-device audit. Mutating targets require DMI `product_version` = `ThinkPad T14 Gen 2a` and an AMD Ryzen CPU. No rotation or kernel display arguments. Before installing, set UEFI *Config → Power → Sleep State* to **Linux**. Always pass `HOST=t14`: the default host is `minibook`.
 
 Ly's console orientation, the disk-unlock/console path, suspend, tablet mode, media keys, external displays, and new kernel updates need manual validation. `make boot-check` is read-only and examines the *currently running* setup; it cannot certify a new boot image.
 

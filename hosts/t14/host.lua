@@ -1,2 +1,3 @@
--- Hardware audit pending. No Intel/AMD, display, or driver assumptions.
--- Shared fallback monitor rule only; mutating setup targets refuse this host.
+-- ThinkPad T14 Gen 2a: landscape 14" eDP panel, no transforms.
+-- The shared fallback monitor rule (preferred mode, auto position, scale 1) applies.
+-- Scale is a preference; set an explicit eDP-1 rule here if 1.25 reads better.

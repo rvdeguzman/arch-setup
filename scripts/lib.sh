@@ -197,9 +197,11 @@ require_fresh_arch() {
     die 'Refusing to mutate Omarchy: this repo is for fresh plain Arch'; return 1
   fi
   [[ $AUDITED == 1 ]] || { die 'Host hardware audit is pending; only planning is allowed'; return 1; }
-  local product
+  local product version
   IFS= read -r product < /sys/class/dmi/id/product_name
   [[ -z $PRODUCT_NAME || $product == "$PRODUCT_NAME" ]] || { die 'Hardware model does not match profile'; return 1; }
+  IFS= read -r version < /sys/class/dmi/id/product_version
+  [[ -z ${PRODUCT_VERSION:-} || $version == "$PRODUCT_VERSION" ]] || { die 'Hardware model does not match profile'; return 1; }
   [[ -z $CPU_MATCH ]] || grep -Fq -- "$CPU_MATCH" /proc/cpuinfo || { die 'CPU does not match profile'; return 1; }
 }
 

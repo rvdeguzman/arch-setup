@@ -50,7 +50,11 @@ profiles() {
   [[ " ${OFFICIAL[*]} " != *' raylib '* && " ${OFFICIAL[*]} " == *' go '* ]] || return
   [[ " ${AUR[*]} " == *' limine-mkinitcpio-hook '* ]] || return
   HOST=t14; load_settings || return
-  [[ $AUDITED == 0 && ${#HOST_SERVICES[@]} == 0 ]] || return
+  build_package_lists || return
+  [[ $AUDITED == 1 && $PRODUCT_VERSION == 'ThinkPad T14 Gen 2a' && -z $LIMINE_ROTATION ]] || return
+  # AMD profile: never Intel microcode/media or MiniBook tablet support.
+  [[ " ${OFFICIAL[*]} " == *' amd-ucode '* && " ${OFFICIAL[*]} " != *' intel-ucode '* ]] || return
+  [[ " ${OFFICIAL[*]} " != *' thermald '* && " ${AUR[*]} " != *' minibook-support-git '* ]] || return
   HOST=../evil; expect_failure load_settings || return
 }
 
@@ -182,7 +186,10 @@ FIXTURE
   rm "$PARU_TEST_LOG" || return
   expect_failure env PARU_TEST_ARCH=0 "$dir/project/setup" aur || return
   expect_failure env PARU_TEST_USER=0 "$dir/project/setup" aur || return
-  expect_failure env HOST=t14 "$dir/project/setup" aur || return
+  mkdir -p "$dir/project/hosts/pending" || return
+  sed 's/^AUDITED=1$/AUDITED=0/' "$dir/project/hosts/t14/host.sh" > "$dir/project/hosts/pending/host.sh" || return
+  : > "$dir/project/hosts/pending/packages.txt"; : > "$dir/project/hosts/pending/aur.txt"
+  expect_failure env HOST=pending "$dir/project/setup" aur || return
   expect_failure env PACKAGE=undeclared-package "$dir/project/setup" aur || return
   if PARU_TEST_MISSING=1 "$dir/project/setup" aur > "$dir/missing-output" 2>&1; then return 1; fi
   grep -q 'Paru is required' "$dir/missing-output" || return

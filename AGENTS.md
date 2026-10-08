@@ -13,7 +13,7 @@ Read README.md and docs/install.md before proposing installation actions.
 - Keep Paru's AUR build-script review enabled. The helper bootstrap prints PKGBUILD/install scripts before makepkg. Never build as root.
 - Keep credentials, wireless profiles, Tailscale state, history and sessions outside Git.
 - The macOS dotfiles repo was the source for shared preferences. Never substitute live machine configs as shared source of truth. Hardware audit files are a separate exception.
-- T14 hardware is unaudited: mutating targets must refuse that profile for now.
+- The T14 profile is the AMD Gen 2a, derived from ArchWiki/Lenovo DMI data rather than an on-device audit. Keep its DMI product_version and CPU guards; mutating targets must refuse any host profile with AUDITED=0.
 - Hyprland Lua APIs are version-sensitive. Consult matching official docs/sample before changes. Never reload the current Omarchy session to test this repo.
 - Do not source ~/.local/share/omarchy or introduce chezmoi/Home Manager.
 - Run make test and make lint; report tests skipped because a tool is absent.
